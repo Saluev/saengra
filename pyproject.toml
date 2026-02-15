@@ -1,0 +1,116 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel", "cmake>=3.15"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "saengra"
+version = "0.1.1"
+description = "Reactive graph database with pattern matching"
+readme = "saengra/README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Tigran Saluev", email = "tigran@saluev.com"}
+]
+keywords = ["graph", "database", "reactive", "pattern-matching", "entity"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: C++",
+    "Topic :: Database",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "frozendict>=2.4.6",
+    "protobuf>=4.0",
+    "termcolor>=2.4.0"
+]
+
+[project.optional-dependencies]
+socket = []  # TODO move protobuf dep here, make optional
+dev = [
+    "pytest>=7.0",
+    "pytest-cov",
+    "build",
+    "twine",
+    "cibuildwheel",
+]
+
+[project.urls]
+Homepage = "https://github.com/Saluev/saengra"
+Repository = "https://github.com/Saluev/saengra"
+Issues = "https://github.com/Saluev/saengra/issues"
+
+[tool.setuptools]
+packages = ["saengra", "saengra.utilities"]
+package-dir = {"" = "."}
+
+[tool.setuptools.package-data]
+saengra = ["*.so", "*.pyd", "*.dylib"]
+
+# cibuildwheel configuration for multi-platform builds
+[tool.cibuildwheel]
+# Build for these Python versions
+build = "cp310-* cp311-* cp312-*"
+# Skip 32-bit builds and musllinux (alpine)
+skip = "*-win32 *-manylinux_i686 *-musllinux_*"
+
+[tool.cibuildwheel.linux]
+manylinux-x86_64-image = "manylinux_2_28"
+manylinux-aarch64-image = "manylinux_2_28"
+environment = { AVOID_HOMEBREW = "1" }
+# Install build dependencies before building (manylinux_2_28 is AlmaLinux 8, uses dnf)
+before-all = """
+    dnf install -y cmake make git boost-devel bison flex gcc-c++ \
+    && git clone --depth 1 --branch 20230802.1 https://github.com/abseil/abseil-cpp.git /tmp/abseil \
+        && cd /tmp/abseil \
+        && cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+            -DABSL_ENABLE_INSTALL=ON \
+            -DCMAKE_CXX_STANDARD=17 \
+        && cmake --build build -j4 \
+        && cmake --install build \
+        && rm -rf /tmp/abseil \
+    && cd /tmp \
+    && git clone --depth 1 --branch v25.3 https://github.com/protocolbuffers/protobuf.git /tmp/protobuf \
+        && cd /tmp/protobuf \
+        && cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+            -Dprotobuf_BUILD_TESTS=OFF \
+            -Dprotobuf_ABSL_PROVIDER=package \
+            -DCMAKE_CXX_STANDARD=17 \
+        && cmake --build build -j4 \
+        && cmake --install build \
+        && rm -rf /tmp/protobuf \
+    && cd /tmp \
+    && git clone --depth 1 --branch v1.14.1 https://github.com/gabime/spdlog.git /tmp/spdlog \
+        && cd /tmp/spdlog \
+        && cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+        && cmake --build build -j4 \
+        && cmake --install build \
+        && rm -rf /tmp/spdlog
+"""
+
+[tool.cibuildwheel.macos]
+# Use Homebrew for dependencies
+before-all = "brew install cmake protobuf boost spdlog abseil bison flex"
+environment = { MACOSX_DEPLOYMENT_TARGET = "15.0" }
+# ARM only (no Intel macOS runners available)
+archs = ["arm64"]
+
+[tool.cibuildwheel.windows]
+# Windows builds require vcpkg or pre-installed dependencies
+before-all = """
+    choco install cmake git -y
+"""
+# Note: Windows builds are more complex due to dependencies
+# Consider using vcpkg for abseil, protobuf, etc.

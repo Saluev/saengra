@@ -1,0 +1,8 @@
+include CMakeLists.txt
+include src/*.cpp
+recursive-include saengra-server *.cmake *.cpp *.h *.hpp *.proto *.l *.y
+include saengra-server/CMakeLists.txt
+recursive-include saengra-server/src *
+recursive-include saengra-server/include *
+recursive-include saengra-server/parser *
+recursive-include saengra-server/proto *

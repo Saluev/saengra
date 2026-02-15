@@ -1,0 +1,47 @@
+name: Tests
+
+on:
+  push:
+    branches: ['*']
+
+jobs:
+  lint:
+    name: Check formatting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check formatting with black
+        run: |
+          pip install black
+          black --check .
+
+  test:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Build image
+        run: |
+          docker build \
+            --build-arg PYTHON_VERSION=${{ matrix.python-version }} \
+            -f Dockerfile \
+            -t saengra-test:${{ matrix.python-version }} \
+            .
+
+      - name: Run tests
+        run: |
+          docker run --rm saengra-test:${{ matrix.python-version }}
