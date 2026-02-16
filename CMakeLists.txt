@@ -21,19 +21,21 @@ Python_add_library(c_extension MODULE
 )
 
 if(UNIX AND NOT APPLE)
+    # On Linux with static libs, we need to ensure all transitive symbols from
+    # protobuf and abseil are linked into the shared object. Use --whole-archive
+    # on all abseil/protobuf static libs found on the system.
+    file(GLOB ABSL_STATIC_LIBS "/usr/local/lib/libabsl_*.a" "/usr/local/lib64/libabsl_*.a")
+    find_library(PROTOBUF_STATIC_LIB libprotobuf.a REQUIRED)
+    find_library(UTF8_VALIDITY_LIB libutf8_validity.a)
+    find_library(UTF8_RANGE_LIB libutf8_range.a)
     target_link_libraries(c_extension PRIVATE
-        -Wl,--start-group
+        -Wl,--whole-archive
         saengra_core
-        protobuf::libprotobuf
-        absl::base
-        absl::cord
-        absl::log_internal_check_op
-        absl::log_internal_message
-        absl::raw_hash_set
-        absl::status
-        absl::statusor
-        absl::strings
-        -Wl,--end-group
+        ${PROTOBUF_STATIC_LIB}
+        $<$<BOOL:${UTF8_VALIDITY_LIB}>:${UTF8_VALIDITY_LIB}>
+        $<$<BOOL:${UTF8_RANGE_LIB}>:${UTF8_RANGE_LIB}>
+        ${ABSL_STATIC_LIBS}
+        -Wl,--no-whole-archive
     )
 else()
     target_link_libraries(c_extension PRIVATE
