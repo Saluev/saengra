@@ -31,4 +31,5 @@ COPY . .
 ENV AVOID_HOMEBREW=1
 RUN pip install --no-cache-dir ".[dev]" && pip uninstall -y saengra && pip install --no-cache-dir . && rm -rf ./saengra
 
+ENV SKIP_BENCHMARKS=1
 CMD ["python", "-m", "pytest", "tests/", "-v"]

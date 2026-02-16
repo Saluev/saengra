@@ -12,6 +12,20 @@ from saengra.graph import (
 from tests.scenarios.game import Biome
 
 
+def test_add_vertex_unhashable(empty_env: Environment) -> None:
+    with pytest.raises(TypeError):
+        empty_env.update(AddVertex([]))
+
+
+def test_add_vertex_unpicklable(empty_env: Environment) -> None:
+    class Unpicklable:
+        def __reduce__(self):
+            raise TypeError("unpicklable")
+
+    with pytest.raises(TypeError):
+        empty_env.update(AddVertex(Unpicklable()))
+
+
 def test_add_vertex(empty_env: Environment) -> None:
     empty_env.update(AddVertex(primitive="foo"))
     assert empty_env.find_all_of_type(str) == {"foo"}
@@ -66,6 +80,12 @@ def test_add_edge_without_to_vertex(empty_env: Environment) -> None:
     empty_env.update(AddVertex("from"), AddEdge("from", "label", "to"))
     vertices, edges = empty_env.find_all()
     assert {*vertices} == {"from"} and not edges, "shouldn't add edge"
+
+
+def test_add_edge_non_string_label(empty_env: Environment) -> None:
+    empty_env.update(AddVertex("from"), AddVertex("to"))
+    with pytest.raises(TypeError):
+        empty_env.update(AddEdge("from", 1, "to"))
 
 
 def test_add_edge(empty_env: Environment) -> None:

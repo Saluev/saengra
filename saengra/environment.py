@@ -4,6 +4,7 @@ from typing import Type, TypeVar, Iterable
 from weakref import WeakValueDictionary
 
 from saengra.adapter import Adapter
+from saengra.c_extension import DirectAdapter
 from saengra.socket_adapter import SocketAdapter
 from saengra.api import Observation
 from saengra.client import SaengraClient
@@ -37,10 +38,7 @@ class Environment(EnvProtocol):
         elif client is not None:
             self._adapter = SocketAdapter(client=client)
         else:
-            client = SaengraClient()
-            client.start()
-            client.connect("default")
-            self._adapter = SocketAdapter(client=client)
+            self._adapter = DirectAdapter()
         # self._profiler = Profiler()
         self._observers: dict[str, Observer] = {}
 
