@@ -1,6 +1,7 @@
 import logging
 import sys
 
+from saengra.graph import Primitive
 from saengra.utilities.colors import cyan, green, yellow, red, bold_red
 
 COLORS = {
@@ -46,3 +47,16 @@ def configure_logging():
 
 
 logger = logging.getLogger("saengra")
+
+
+class LazyRefsFormatter:
+    """ Optimize logging calls in production environment by not forming
+    strings unless the logging level demands it. """
+
+    __slots__ = ("_refs",)
+
+    def __init__(self, refs: dict[str, Primitive]) -> None:
+        self._refs = refs
+
+    def __str__(self) -> str:
+        return ", ".join(f"{k}={v!r}" for k, v in sorted(self._refs.items()))

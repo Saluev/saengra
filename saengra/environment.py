@@ -13,7 +13,7 @@ from saengra.graph import Primitive, Update, AddVertex, RemoveVertex, Edge, Refs
 from saengra.observer import Observer, RefsHandler
 from saengra.utilities.colors import light_green
 from saengra.utilities.itertools import group_by
-from saengra.utilities.loggers import logger
+from saengra.utilities.loggers import logger, LazyRefsFormatter
 
 T = TypeVar("T")
 
@@ -210,9 +210,7 @@ class Environment(EnvProtocol):
 
     def _invoke_handler(self, handler: RefsHandler, refs: dict[str, Primitive]) -> None:
         logger.debug(
-            f"Invoking {light_green(handler.__name__)}("
-            + ", ".join(f"{k}={v!r}" for k, v in sorted(refs.items()))
-            + ")",
+            f"Invoking {light_green(handler.__name__)}(%s)", LazyRefsFormatter(refs)
         )
         enriched_refs: dict[str, Primitive | Entity | Environment] = {}
         if env_arg := _get_env_arg(handler):
