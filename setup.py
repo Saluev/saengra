@@ -40,6 +40,7 @@ class CMakeBuild(build_ext):
             f"-DPython_INCLUDE_DIR={python_include}",
             f"-DPython_FIND_STRATEGY=LOCATION",
             f"-DCMAKE_BUILD_TYPE={'Debug' if self.debug else 'Release'}",
+            f"-DSAENGRA_STATIC_DEPS={'ON' if os.environ.get('SAENGRA_STATIC_DEPS') else 'OFF'}",
         ]
 
         build_args = []

@@ -50,8 +50,8 @@ logger = logging.getLogger("saengra")
 
 
 class LazyRefsFormatter:
-    """ Optimize logging calls in production environment by not forming
-    strings unless the logging level demands it. """
+    """Optimize logging calls in production environment by not forming
+    strings unless the logging level demands it."""
 
     __slots__ = ("_refs",)
 

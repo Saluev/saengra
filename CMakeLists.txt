@@ -20,10 +20,11 @@ Python_add_library(c_extension MODULE
     src/adapter.cpp
 )
 
-if(UNIX AND NOT APPLE)
-    # On Linux with static libs, we need to ensure all transitive symbols from
-    # protobuf and abseil are linked into the shared object. Use --whole-archive
-    # on all abseil/protobuf static libs found on the system.
+option(SAENGRA_STATIC_DEPS "Statically link all deps into the extension (for wheel builds)" OFF)
+
+if(SAENGRA_STATIC_DEPS)
+    # For manylinux wheel builds: bundle all symbols from protobuf/abseil
+    # into the .so so it has no runtime dependencies on them.
     file(GLOB ABSL_STATIC_LIBS "/usr/local/lib/libabsl_*.a" "/usr/local/lib64/libabsl_*.a")
     find_library(PROTOBUF_STATIC_LIB libprotobuf.a REQUIRED)
     find_library(UTF8_VALIDITY_LIB libutf8_validity.a)
