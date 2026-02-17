@@ -36,6 +36,7 @@ if(UNIX AND NOT APPLE)
         $<$<BOOL:${UTF8_RANGE_LIB}>:${UTF8_RANGE_LIB}>
         ${ABSL_STATIC_LIBS}
         -Wl,--no-whole-archive
+        -lz
     )
 else()
     target_link_libraries(c_extension PRIVATE
