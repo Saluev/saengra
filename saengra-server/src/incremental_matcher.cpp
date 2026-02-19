@@ -229,11 +229,11 @@ IncrementalUpdate IncrementalMatcher::match_incrementally(const Observations& os
     }
 
     return IncrementalUpdate{
-        added_deps,
-        removed_deps,
-        changes.added_subgraphs,
-        changes.changed_subgraphs,
-        changes.removed_subgraphs
+        std::move(added_deps),
+        std::move(removed_deps),
+        std::move(changes.added_subgraphs),
+        std::move(changes.changed_subgraphs),
+        std::move(changes.removed_subgraphs)
     };
 }
 
