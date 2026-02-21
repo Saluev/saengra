@@ -17,15 +17,12 @@ jobs:
       matrix:
         include:
           # Linux x86_64
-          - { os: ubuntu-22.04, arch: x86_64, python: "310" }
           - { os: ubuntu-22.04, arch: x86_64, python: "311" }
           - { os: ubuntu-22.04, arch: x86_64, python: "312" }
           # Linux aarch64
-          - { os: ubuntu-22.04, arch: aarch64, python: "310" }
           - { os: ubuntu-22.04, arch: aarch64, python: "311" }
           - { os: ubuntu-22.04, arch: aarch64, python: "312" }
           # macOS arm64
-          - { os: macos-15, arch: arm64, python: "310" }
           - { os: macos-15, arch: arm64, python: "311" }
           - { os: macos-15, arch: arm64, python: "312" }
 
