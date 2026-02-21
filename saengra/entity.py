@@ -36,7 +36,7 @@ class EnvProtocol(Protocol):
         pass
 
 
-@typing.dataclass_transform(order_default=True)
+@typing.dataclass_transform(eq_default=True, order_default=True, frozen_default=True)
 def primitive(cls: Type) -> Type:
     result = dataclass(frozen=True, slots=True, order=True)(cls)
     setattr(result, PRIMITIVE_MARKER_ATTR_NAME, True)
