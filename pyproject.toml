@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "saengra"
-version = "0.1.6"
+version = "0.1.7"
 description = "Reactive graph database with pattern matching"
 readme = "saengra/README.md"
 license = {text = "MIT"}

@@ -22,7 +22,6 @@ class RelatedEntitiesContainer:
         "_e",
         "_from",
         "_label",
-        "_to_type",
         "_cached_values",
     )
 
@@ -32,13 +31,11 @@ class RelatedEntitiesContainer:
         e: "Entity",
         from_: Primitive,
         label: Label,
-        to_type: type,
     ) -> None:
         self._env = env
         self._e = e
         self._from = from_
         self._label = label
-        self._to_type = to_type
         self._cached_values: set["Primitive | Entity"] = set()
 
     def assign(self, value: list["Primitive | Entity"]):

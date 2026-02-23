@@ -59,7 +59,6 @@ class RelatedCollectionProperty(EntityProperty):
         "_label",
         "_cache_attr_name",
         "_item_type_annotation",
-        "_item_type",
         "_proxy_type",
     )
 
@@ -67,9 +66,6 @@ class RelatedCollectionProperty(EntityProperty):
         self._label = intern(label)
         self._cache_attr_name = _make_cache_attr_name(label)
         self._item_type_annotation = annotation.item_type
-        self._item_type = (
-            annotation.item_type if isinstance(annotation.item_type, type) else None
-        )
         self._proxy_type = {
             set: RelatedEntitiesSet,
         }[
@@ -77,11 +73,7 @@ class RelatedCollectionProperty(EntityProperty):
         ]
 
     def make_collection(self, env: "EnvProtocol", e: "Entity", primitive: Primitive):
-        if self._item_type is None:
-            assert isinstance(self._item_type_annotation, LookaheadType)
-            self._item_type = self._item_type_annotation.resolve()
-
-        return self._proxy_type(env, e, primitive, self._label, self._item_type)
+        return self._proxy_type(env, e, primitive, self._label)
 
     def __get__(self, instance: "Entity | None", owner):
         if instance is None:
