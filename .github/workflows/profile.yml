@@ -44,7 +44,8 @@ jobs:
           AVOID_HOMEBREW: "1"
           SAENGRA_DEBUG: "1"
         run: |
-          pip install --no-cache-dir ".[dev]"
+          pip install setuptools wheel "cmake>=3.15"
+          pip install --no-cache-dir --no-build-isolation ".[dev]"
 
       - name: Clone vic repo
         run: |
