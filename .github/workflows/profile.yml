@@ -51,6 +51,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Saluev/vic
+          token: ${{ secrets.VIC_ACCESS_TOKEN }}
           path: vic
 
       - name: Run profiling with py-spy
