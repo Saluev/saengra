@@ -55,6 +55,9 @@ jobs:
           token: ${{ secrets.VIC_ACCESS_TOKEN }}
           path: vic
 
+      - name: Install vic dependencies
+        run: pip install -r vic/requirements.txt
+
       - name: Run profiling with py-spy
         run: |
           pip install py-spy
