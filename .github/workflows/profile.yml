@@ -45,7 +45,8 @@ jobs:
           SAENGRA_DEBUG: "1"
         run: |
           pip install setuptools wheel "cmake>=3.15"
-          pip install --no-cache-dir --no-build-isolation ".[dev]"
+          pip install --no-cache-dir --no-build-isolation -e ".[dev]"
+          python -c "from saengra.c_extension import DirectAdapter; print('c_extension OK')"
 
       - name: Checkout vic repo
         uses: actions/checkout@v4
