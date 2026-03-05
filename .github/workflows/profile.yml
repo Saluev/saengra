@@ -1,0 +1,92 @@
+name: Profiling
+
+on:
+  push:
+    branches: ['profile/*']
+
+jobs:
+  profile:
+    name: Profile
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -y \
+            build-essential cmake git \
+            libprotobuf-dev protobuf-compiler libboost-dev libspdlog-dev \
+            bison flex valgrind
+
+      - name: Build abseil from source
+        run: |
+          git clone --depth 1 --branch 20240116.2 https://github.com/abseil/abseil-cpp.git /tmp/abseil
+          cd /tmp/abseil
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+            -DABSL_ENABLE_INSTALL=ON \
+            -DABSL_USE_SYSTEM_INCLUDES=ON
+          cmake --build build -j$(nproc)
+          sudo cmake --install build
+          sudo ldconfig
+
+      - name: Install saengra in debug mode
+        env:
+          AVOID_HOMEBREW: "1"
+        run: |
+          pip install --no-cache-dir ".[dev]" --config-settings="--build-option=--debug"
+
+      - name: Clone vic repo
+        run: |
+          git clone --depth 1 https://github.com/Saluev/vic.git /tmp/vic
+
+      - name: Run profiling with py-spy
+        run: |
+          pip install py-spy
+          py-spy record -o profile.svg --native --format flamegraph -- \
+            python -m pytest /tmp/vic/tests/vic/actions -v -s 2>&1 | tee pytest-output.txt || true
+
+      - name: Run profiling with cProfile
+        run: |
+          python -m cProfile -o profile.pstats -m pytest /tmp/vic/tests/vic/actions -v -s 2>&1 | tee pytest-output-cprofile.txt || true
+
+      - name: Generate cumulative timing report
+        run: |
+          python -c "
+          import pstats
+          with open('profile-report.txt', 'w') as f:
+              stats = pstats.Stats('profile.pstats', stream=f)
+              stats.strip_dirs()
+              f.write('=== Top 60 by cumulative time ===\n\n')
+              stats.sort_stats('cumulative')
+              stats.print_stats(60)
+              f.write('\n\n=== Top 60 by self time ===\n\n')
+              stats.sort_stats('tottime')
+              stats.print_stats(60)
+          "
+          echo "=== Profile Report ==="
+          cat profile-report.txt
+
+      - name: Run callgrind (C++ profiling)
+        run: |
+          valgrind --tool=callgrind --callgrind-out-file=callgrind.out \
+            python -m pytest /tmp/vic/tests/vic/actions -v -s 2>&1 | tail -20 || true
+          callgrind_annotate --auto=yes callgrind.out > callgrind-report.txt 2>&1 || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: profiling-results
+          path: |
+            profile.svg
+            profile-report.txt
+            callgrind-report.txt
+            callgrind.out
