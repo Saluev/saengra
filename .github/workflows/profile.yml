@@ -51,17 +51,17 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Saluev/vic
-          path: /tmp/vic
+          path: vic
 
       - name: Run profiling with py-spy
         run: |
           pip install py-spy
           py-spy record -o profile.svg --native --format flamegraph -- \
-            python -m pytest /tmp/vic/tests/vic/actions -v -s 2>&1 | tee pytest-output.txt || true
+            python -m pytest vic/tests/vic/actions -v -s 2>&1 | tee pytest-output.txt || true
 
       - name: Run profiling with cProfile
         run: |
-          python -m cProfile -o profile.pstats -m pytest /tmp/vic/tests/vic/actions -v -s 2>&1 | tee pytest-output-cprofile.txt || true
+          python -m cProfile -o profile.pstats -m pytest vic/tests/vic/actions -v -s 2>&1 | tee pytest-output-cprofile.txt || true
 
       - name: Generate cumulative timing report
         run: |
@@ -83,7 +83,7 @@ jobs:
       - name: Run callgrind (C++ profiling)
         run: |
           valgrind --tool=callgrind --callgrind-out-file=callgrind.out \
-            python -m pytest /tmp/vic/tests/vic/actions -v -s 2>&1 | tail -20 || true
+            python -m pytest vic/tests/vic/actions -v -s 2>&1 | tail -20 || true
           callgrind_annotate --auto=yes callgrind.out > callgrind-report.txt 2>&1 || true
 
       - uses: actions/upload-artifact@v4
