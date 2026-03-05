@@ -47,9 +47,11 @@ jobs:
           pip install setuptools wheel "cmake>=3.15"
           pip install --no-cache-dir --no-build-isolation ".[dev]"
 
-      - name: Clone vic repo
-        run: |
-          git clone --depth 1 https://github.com/Saluev/vic.git /tmp/vic
+      - name: Checkout vic repo
+        uses: actions/checkout@v4
+        with:
+          repository: Saluev/vic
+          path: /tmp/vic
 
       - name: Run profiling with py-spy
         run: |
