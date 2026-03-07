@@ -24,7 +24,7 @@ jobs:
           sudo apt-get update && sudo apt-get install -y \
             build-essential cmake git \
             libprotobuf-dev protobuf-compiler libboost-dev libspdlog-dev \
-            bison flex valgrind
+            bison flex linux-tools-common linux-tools-$(uname -r)
 
       - name: Build abseil from source
         run: |
@@ -58,38 +58,21 @@ jobs:
       - name: Install vic dependencies
         run: pip install -r vic/requirements.txt
 
+      - name: Run profiling with perf
+        run: |
+          sudo sysctl -w kernel.perf_event_paranoid=-1
+          sudo sysctl -w kernel.kptr_restrict=0
+          perf record -g --call-graph dwarf -o perf.data -- \
+            python -m pytest vic/tests/vic/actions -v -s 2>&1 | tee pytest-output.txt || true
+          perf report -n --stdio --sort=sym,srcline -g none -i perf.data > profile-report.txt 2>/dev/null || true
+          echo "=== Profile Report (top 80) ==="
+          head -80 profile-report.txt
+
       - name: Run profiling with py-spy
         run: |
           pip install py-spy
           py-spy record -o profile.svg --native --format flamegraph -- \
-            python -m pytest vic/tests/vic/actions -v -s 2>&1 | tee pytest-output.txt || true
-
-      - name: Run profiling with cProfile
-        run: |
-          python -m cProfile -o profile.pstats -m pytest vic/tests/vic/actions -v -s 2>&1 | tee pytest-output-cprofile.txt || true
-
-      - name: Generate cumulative timing report
-        run: |
-          python -c "
-          import pstats
-          with open('profile-report.txt', 'w') as f:
-              stats = pstats.Stats('profile.pstats', stream=f)
-              stats.strip_dirs()
-              f.write('=== Top 60 by cumulative time ===\n\n')
-              stats.sort_stats('cumulative')
-              stats.print_stats(60)
-              f.write('\n\n=== Top 60 by self time ===\n\n')
-              stats.sort_stats('tottime')
-              stats.print_stats(60)
-          "
-          echo "=== Profile Report ==="
-          cat profile-report.txt
-
-      - name: Run callgrind (C++ profiling)
-        run: |
-          valgrind --tool=callgrind --callgrind-out-file=callgrind.out \
-            python -m pytest vic/tests/vic/actions -v -s 2>&1 | tail -20 || true
-          callgrind_annotate --auto=yes callgrind.out > callgrind-report.txt 2>&1 || true
+            python -m pytest vic/tests/vic/actions -v -s 2>&1 || true
 
       - uses: actions/upload-artifact@v4
         with:
@@ -97,5 +80,4 @@ jobs:
           path: |
             profile.svg
             profile-report.txt
-            callgrind-report.txt
-            callgrind.out
+            perf.data
