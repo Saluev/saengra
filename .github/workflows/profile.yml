@@ -6,96 +6,89 @@ on:
 
 jobs:
   profile:
-    name: Profile
+    name: Profile on Hetzner
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential cmake git \
-            libprotobuf-dev protobuf-compiler libboost-dev libspdlog-dev \
-            bison flex linux-tools-common
-          sudo apt-get install -y linux-tools-$(uname -r)
-          # The above installs a symlink; resolve it to install the actual perf binary
-          SYMLINK=$(readlink /usr/lib/linux-tools/$(uname -r))
-          echo "Symlink target: $SYMLINK"
-          sudo apt-get install -y "$(basename $SYMLINK)"
-
-      - name: Build abseil from source
-        run: |
-          git clone --depth 1 --branch 20240116.2 https://github.com/abseil/abseil-cpp.git /tmp/abseil
-          cd /tmp/abseil
-          cmake -S . -B build \
-            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-            -DABSL_ENABLE_INSTALL=ON \
-            -DABSL_USE_SYSTEM_INCLUDES=ON
-          cmake --build build -j$(nproc)
-          sudo cmake --install build
-          sudo ldconfig
-
-      - name: Install saengra in debug mode
+      - name: Run profiling on remote machine
         env:
-          AVOID_HOMEBREW: "1"
-          SAENGRA_DEBUG: "1"
+          SSH_KEY: ${{ secrets.HETZNER_SSH_KEY }}
+          HOST: ${{ secrets.HETZNER_HOST }}
+          USER: ${{ secrets.HETZNER_USER }}
+          GIT_REF: ${{ github.sha }}
         run: |
-          pip install setuptools wheel "cmake>=3.15"
-          pip install --no-cache-dir --no-build-isolation -e ".[dev]"
-          python -c "from saengra.c_extension import DirectAdapter; print('c_extension OK')"
+          # Set up SSH
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Checkout vic repo
-        uses: actions/checkout@v4
-        with:
-          repository: Saluev/vic
-          token: ${{ secrets.VIC_ACCESS_TOKEN }}
-          path: vic
+          SSH="ssh -o StrictHostKeyChecking=no ${USER}@${HOST}"
 
-      - name: Install vic dependencies
-        run: pip install -r vic/requirements.txt
+          # Run profiling remotely
+          $SSH bash -s "$GIT_REF" << 'REMOTE_SCRIPT'
+            set -euo pipefail
+            GIT_REF="$1"
+            WORKDIR="$HOME/profile-run"
+            RESULTS="$HOME/results"
 
-      - name: Run profiling with perf
+            mkdir -p "$WORKDIR" "$RESULTS"
+
+            # Set up saengra
+            if [ -d "$WORKDIR/saengra" ]; then
+              cd "$WORKDIR/saengra"
+              git fetch origin
+              git checkout "$GIT_REF"
+              git submodule update --init --recursive
+            else
+              git clone --recursive https://github.com/Saluev/saengra.git "$WORKDIR/saengra"
+              cd "$WORKDIR/saengra"
+              git checkout "$GIT_REF"
+            fi
+
+            # Set up venv
+            if [ ! -d "$WORKDIR/venv" ]; then
+              python3 -m venv "$WORKDIR/venv"
+            fi
+            source "$WORKDIR/venv/bin/activate"
+
+            # Build saengra
+            AVOID_HOMEBREW=1 SAENGRA_DEBUG=1 pip install --no-cache-dir --force-reinstall --no-build-isolation -e ".[dev]"
+            python -c "from saengra.c_extension import DirectAdapter; print('c_extension OK')"
+
+            # Set up vic
+            if [ -d "$WORKDIR/vic" ]; then
+              cd "$WORKDIR/vic"
+              git pull || true
+              cd "$WORKDIR/saengra"
+            else
+              git clone https://github.com/Saluev/vic.git "$WORKDIR/vic"
+            fi
+            pip install -r "$WORKDIR/vic/requirements.txt"
+
+            # Run perf
+            perf record -g --call-graph dwarf -o "$RESULTS/perf.data" -- \
+              python -m pytest "$WORKDIR/vic/tests/vic/actions" -v -s 2>&1 | tail -20
+
+            perf report -n --stdio --sort=sym,srcline -g none \
+              -i "$RESULTS/perf.data" > "$RESULTS/profile-report.txt" 2>/dev/null
+
+            echo "=== Profile Report (top 80) ==="
+            head -80 "$RESULTS/profile-report.txt"
+          REMOTE_SCRIPT
+
+      - name: Fetch results
+        env:
+          SSH_KEY: ${{ secrets.HETZNER_SSH_KEY }}
+          HOST: ${{ secrets.HETZNER_HOST }}
+          USER: ${{ secrets.HETZNER_USER }}
         run: |
-          sudo sysctl -w kernel.perf_event_paranoid=-1
-          sudo sysctl -w kernel.kptr_restrict=0
-          # Find the actual perf binary (bypass the broken wrapper)
-          PERF=$(find /usr/lib/linux-tools -name perf -type f 2>/dev/null | head -1)
-          if [ -z "$PERF" ]; then
-            # Resolve the symlink manually and look there
-            TOOLS_DIR=$(readlink -f /usr/lib/linux-tools/$(uname -r) 2>/dev/null)
-            PERF="${TOOLS_DIR}/perf"
-          fi
-          echo "Using perf binary: $PERF"
-          echo "=== Contents of linux-tools dirs ==="
-          find /usr/lib/linux-*tools* -type f 2>/dev/null | head -20
-          dpkg -L linux-azure-6.14-tools-6.14.0-1017 2>/dev/null | head -20
-          ls -la "$PERF" || { echo "perf binary not found"; exit 1; }
-          $PERF record -g --call-graph dwarf -o perf.data -- \
-            python -m pytest vic/tests/vic/actions -v -s 2>&1 | tee pytest-output.txt || true
-          $PERF report -n --stdio --sort=sym,srcline -g none -i perf.data > profile-report.txt 2>/dev/null || true
-          echo "=== Profile Report (top 80) ==="
-          head -80 profile-report.txt
-
-      - name: Run profiling with py-spy
-        run: |
-          pip install py-spy
-          py-spy record -o profile.svg --native --format flamegraph -- \
-            python -m pytest vic/tests/vic/actions -v -s 2>&1 || true
+          mkdir -p results
+          SCP="scp -o StrictHostKeyChecking=no"
+          $SCP "${USER}@${HOST}:~/results/profile-report.txt" results/
+          $SCP "${USER}@${HOST}:~/results/perf.data" results/ || true
 
       - uses: actions/upload-artifact@v4
         with:
           name: profiling-results
-          path: |
-            profile.svg
-            profile-report.txt
-            perf.data
+          path: results/
