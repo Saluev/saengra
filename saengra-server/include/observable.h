@@ -82,7 +82,8 @@ struct EdgeToWithLabel {
     }
 };
 
-using Observable = boost::variant<
+// Inheritance instead of type alias for more readable profiling reports.
+class Observable : public boost::variant<
     NewVertex,
     NewVertexOfType,
     ParticularVertex,
@@ -92,7 +93,29 @@ using Observable = boost::variant<
     EdgeFromWithLabel,
     EdgeTo,
     EdgeToWithLabel
->;
+> {
+public:
+    using variant::variant;
+    using variant::operator=;
+    using base = boost::variant<
+        NewVertex, NewVertexOfType, ParticularVertex,
+        NewEdge, NewEdgeWithLabel,
+        EdgeFrom, EdgeFromWithLabel,
+        EdgeTo, EdgeToWithLabel
+    >;
+    Observable() = default;
+    Observable(const Observable&) = default;
+    Observable(Observable&&) = default;
+    Observable& operator=(const Observable&) = default;
+    Observable& operator=(Observable&&) = default;
+
+    inline bool operator==(const Observable& other) const {
+        return static_cast<const base&>(*this) == static_cast<const base&>(other);
+    }
+    inline bool operator<(const Observable& other) const {
+        return static_cast<const base&>(*this) < static_cast<const base&>(other);
+    }
+};
 
 using Observables = std::vector<Observable>;
 
