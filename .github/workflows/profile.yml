@@ -68,9 +68,18 @@ jobs:
         run: |
           sudo sysctl -w kernel.perf_event_paranoid=-1
           sudo sysctl -w kernel.kptr_restrict=0
-          perf record -g --call-graph dwarf -o perf.data -- \
+          # Find the actual perf binary (bypass the broken wrapper)
+          PERF=$(find /usr/lib/linux-tools -name perf -type f 2>/dev/null | head -1)
+          if [ -z "$PERF" ]; then
+            # Resolve the symlink manually and look there
+            TOOLS_DIR=$(readlink -f /usr/lib/linux-tools/$(uname -r) 2>/dev/null)
+            PERF="${TOOLS_DIR}/perf"
+          fi
+          echo "Using perf binary: $PERF"
+          ls -la "$PERF" || { echo "perf binary not found"; exit 1; }
+          $PERF record -g --call-graph dwarf -o perf.data -- \
             python -m pytest vic/tests/vic/actions -v -s 2>&1 | tee pytest-output.txt || true
-          perf report -n --stdio --sort=sym,srcline -g none -i perf.data > profile-report.txt 2>/dev/null || true
+          $PERF report -n --stdio --sort=sym,srcline -g none -i perf.data > profile-report.txt 2>/dev/null || true
           echo "=== Profile Report (top 80) ==="
           head -80 profile-report.txt
 
