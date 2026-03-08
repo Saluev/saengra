@@ -62,8 +62,8 @@ void IncrementalMatcher::fill_deps_from_query_set_observables(const QuerySetObse
     }
 }
 
-std::unordered_set<Observable> IncrementalMatcher::gather_deps_for_sps(const std::unordered_set<Position>& sps) const {
-    std::unordered_set<Observable> deps_set;
+ObservableSet IncrementalMatcher::gather_deps_for_sps(const std::unordered_set<Position>& sps) const {
+    ObservableSet deps_set;
     for (const QuerySetObservable& d : start_deps_) {
         deps_set.insert(d.observable);
     }

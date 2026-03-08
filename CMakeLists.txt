@@ -42,6 +42,7 @@ if(SAENGRA_STATIC_DEPS)
 else()
     target_link_libraries(c_extension PRIVATE
         saengra_core
+        absl::raw_hash_set
     )
 endif()
 
