@@ -70,6 +70,7 @@ jobs:
         env:
           HOST: ${{ secrets.HETZNER_HOST }}
           USER: ${{ secrets.HETZNER_USER }}
+          GIT_REF: ${{ github.sha }}
         run:
           SSH="ssh -o StrictHostKeyChecking=no ${USER}@${HOST}"
           $SSH bash -s "$GIT_REF" << 'REMOTE_SCRIPT'
@@ -91,6 +92,7 @@ jobs:
         env:
           HOST: ${{ secrets.HETZNER_HOST }}
           USER: ${{ secrets.HETZNER_USER }}
+          GIT_REF: ${{ github.sha }}
         run:
           SSH="ssh -o StrictHostKeyChecking=no ${USER}@${HOST}"
           $SSH bash -s "$GIT_REF" << 'REMOTE_SCRIPT'
