@@ -8,12 +8,16 @@ if TYPE_CHECKING:
 from saengra.graph import Label, Primitive, RemoveEdgesToAll, AddVertex, AddEdge
 from saengra.utilities.annotations import (
     CollectionAnnotation,
-    LookaheadType,
     ScalarAnnotation,
     OptionalAnnotation,
     ParsedAnnotation,
 )
 from saengra.utilities.containers import RelatedEntitiesSet
+
+
+_object_getattribute = object.__getattribute__
+_object_setattr = object.__setattr__
+_object_delattr = object.__delattr__
 
 
 class EntityProperty:
@@ -48,7 +52,7 @@ class PrimitiveProperty(EntityProperty):
         if instance is None:
             return self
 
-        return object.__getattribute__(instance.primitive, self._attr_name)
+        return _object_getattribute(instance.primitive, self._attr_name)
 
     def __delete__(self, instance: "Entity"):
         raise AttributeError(self._attr_name)
@@ -78,10 +82,10 @@ class RelatedCollectionProperty(EntityProperty):
     def __get__(self, instance: "Entity | None", owner):
         if instance is None:
             return self
-        return object.__getattribute__(instance, self._cache_attr_name)
+        return _object_getattribute(instance, self._cache_attr_name)
 
     def __set__(self, instance: "Entity", value: Any) -> None:
-        collection = object.__getattribute__(instance, self._cache_attr_name)
+        collection = _object_getattribute(instance, self._cache_attr_name)
         collection.assign([*value])
 
     def __delete__(self, e: "Entity"):
@@ -98,19 +102,19 @@ class RelatedCollectionProperty(EntityProperty):
 
     def init_cache(self, env: "EnvProtocol", e: "Entity", primitive: Primitive) -> None:
         collection = self.make_collection(env, e, primitive)
-        setattr(e, self._cache_attr_name, collection)
+        _object_setattr(e, self._cache_attr_name, collection)
 
     def clear_cache(self, e: "Entity") -> None:
-        collection = object.__getattribute__(e, self._cache_attr_name)
+        collection = _object_getattribute(e, self._cache_attr_name)
         collection._remove_inverse(collection._cached_values)
         collection._cached_values.clear()
 
     def add_to_cache(self, e: "Entity", what: Any):
-        collection = object.__getattribute__(e, self._cache_attr_name)
+        collection = _object_getattribute(e, self._cache_attr_name)
         collection._add_to_cache(what)
 
     def remove_from_cache(self, e: "Entity", what: "Entity") -> None:
-        collection = object.__getattribute__(e, self._cache_attr_name)
+        collection = _object_getattribute(e, self._cache_attr_name)
         collection._cached_values.remove(what)
 
 
@@ -153,20 +157,20 @@ class RelatedOptionalEntityProperty(RelatedEntityPropertyBase):
         return [], {}
 
     def init_cache(self, env: "EnvProtocol", e: "Entity", primitive: Primitive) -> None:
-        setattr(e, self._cache_attr_name, None)
+        _object_setattr(e, self._cache_attr_name, None)
 
     def clear_cache(self, e: "Entity") -> None:
-        setattr(e, self._cache_attr_name, None)
+        _object_setattr(e, self._cache_attr_name, None)
 
     def add_to_cache(self, e: "Entity", what: Any) -> None:
         if is_entity(prev := getattr(e, self._cache_attr_name, None)):
             prev._inverse.remove((e, self._label))
-        setattr(e, self._cache_attr_name, what)
+        _object_setattr(e, self._cache_attr_name, what)
         if is_entity(what):
             what._inverse.add((e, self._label))
 
     def remove_from_cache(self, e: "Entity", what: "Entity") -> None:
-        setattr(e, self._cache_attr_name, None)
+        _object_setattr(e, self._cache_attr_name, None)
 
 
 class Uninitialized:
@@ -187,7 +191,7 @@ class RelatedEntityProperty(RelatedEntityPropertyBase):
         if instance is None:
             return self
         try:
-            return object.__getattribute__(instance, self._cache_attr_name)
+            return _object_getattribute(instance, self._cache_attr_name)
         except AttributeError as exc:
             raise RuntimeError(
                 f"{instance!r} doesn't have a linked {self._label!r}"
@@ -215,17 +219,17 @@ class RelatedEntityProperty(RelatedEntityPropertyBase):
         pass  # don't init cache, this attribute has to be set
 
     def clear_cache(self, e: "Entity") -> None:
-        delattr(e, self._cache_attr_name)
+        _object_delattr(e, self._cache_attr_name)
 
     def add_to_cache(self, e: "Entity", what: Any) -> None:
         if is_entity(prev := getattr(e, self._cache_attr_name, None)):
             prev._inverse.remove((e, self._label))
-        setattr(e, self._cache_attr_name, what)
+        _object_setattr(e, self._cache_attr_name, what)
         if is_entity(what):
             what._inverse.add((e, self._label))
 
     def remove_from_cache(self, e: "Entity", what: "Entity") -> None:
-        delattr(e, self._cache_attr_name)
+        _object_delattr(e, self._cache_attr_name)
 
 
 def related_entity_property(
