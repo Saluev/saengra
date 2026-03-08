@@ -67,7 +67,7 @@ jobs:
             fi
             pip install -r "$WORKDIR/vic/requirements.txt"
 
-            echo "Running perf
+            echo "Running perf"
             perf record -g --call-graph dwarf -o "$RESULTS/perf.data" -- \
               python -m pytest "$WORKDIR/vic/tests/vic/actions" -v -s 2>&1 | tail -20
 
