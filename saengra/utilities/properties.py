@@ -27,9 +27,10 @@ class EntityProperty:
         return [], {}
 
     def compose_slots(self) -> list[str]:
+        """Returns the list of attribute names that are going to be used and have to be added to entity's __slots__."""
         return []
 
-    def init_cache(self, env: "EnvProtocol", e: "Entity", primitive: Primitive) -> None:
+    def reset_cache(self, env: "EnvProtocol", e: "Entity", primitive: Primitive) -> None:
         pass
 
     def clear_cache(self, e: "Entity") -> None:
@@ -100,7 +101,7 @@ class RelatedCollectionProperty(EntityProperty):
     def compose_slots(self) -> list[str]:
         return [self._cache_attr_name]
 
-    def init_cache(self, env: "EnvProtocol", e: "Entity", primitive: Primitive) -> None:
+    def reset_cache(self, env: "EnvProtocol", e: "Entity", primitive: Primitive) -> None:
         collection = self.make_collection(env, e, primitive)
         _object_setattr(e, self._cache_attr_name, collection)
 
@@ -156,7 +157,7 @@ class RelatedOptionalEntityProperty(RelatedEntityPropertyBase):
     def compose_init_code(self) -> tuple[list[str], dict[str, Any]]:
         return [], {}
 
-    def init_cache(self, env: "EnvProtocol", e: "Entity", primitive: Primitive) -> None:
+    def reset_cache(self, env: "EnvProtocol", e: "Entity", primitive: Primitive) -> None:
         _object_setattr(e, self._cache_attr_name, None)
 
     def clear_cache(self, e: "Entity") -> None:
@@ -215,7 +216,7 @@ class RelatedEntityProperty(RelatedEntityPropertyBase):
         result = [f"self.{self._cache_attr_name} = _uninitialized"]
         return result, {"_uninitialized": _uninitialized}
 
-    def init_cache(self, env: "EnvProtocol", e: "Entity", primitive: Primitive) -> None:
+    def reset_cache(self, env: "EnvProtocol", e: "Entity", primitive: Primitive) -> None:
         pass  # don't init cache, this attribute has to be set
 
     def clear_cache(self, e: "Entity") -> None:

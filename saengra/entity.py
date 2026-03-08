@@ -232,12 +232,6 @@ class Entity(metaclass=EntityMeta):
         }
         return primitive, remaining_args, remaining_kwargs
 
-    @classmethod
-    def _init_cache(cls, env: EnvProtocol, e: "Entity", primitive: Primitive) -> None:
-        for attr_name in cls.__annotations__:
-            prop = getattr(cls, attr_name)
-            prop.init_cache(env, e, primitive)
-
     ####################################################################################################################
 
     # Overriding mutation forbidding methods introduced by `@primitive`.
@@ -383,12 +377,17 @@ class Entity(metaclass=EntityMeta):
         self._inverse.clear()
 
     def _sync(self, edges: list[tuple[Label, "Primitive | Entity"]]) -> None:
-        self._init_cache(self._env, self, self.primitive)
+        self._reset_cache(self._env, self.primitive)
         for label, to in edges:
             attr_name = str(label)
             prop = getattr(type(self), attr_name)
             prop.add_to_cache(self, to)
 
+    def _reset_cache(self, env: EnvProtocol, primitive: Primitive) -> None:
+        cls = type(self)
+        for attr_name in cls.__annotations__:
+            prop = getattr(cls, attr_name)
+            prop.reset_cache(env, self, primitive)
 
 PRIMITIVE_MARKER_ATTR_NAME = "__saengra_primitive__"
 
