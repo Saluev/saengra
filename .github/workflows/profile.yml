@@ -68,8 +68,10 @@ jobs:
             pip install -r "$WORKDIR/vic/requirements.txt"
 
             echo "Running perf"
+            set +e
             perf record -g --call-graph dwarf -o "$RESULTS/perf.data" -- \
               python -m pytest "$WORKDIR/vic/tests/vic/actions" -v -s 2>&1 | tail -20
+            set -e
 
             perf report -n --stdio --sort=sym,srcline -g none \
               -i "$RESULTS/perf.data" > "$RESULTS/profile-report.txt" 2>/dev/null
