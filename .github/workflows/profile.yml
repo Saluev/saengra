@@ -25,7 +25,10 @@ jobs:
             build-essential cmake git \
             libprotobuf-dev protobuf-compiler libboost-dev libspdlog-dev \
             bison flex linux-tools-common
-          sudo apt-get install -y linux-tools-$(uname -r) || sudo apt-get install -y linux-tools-azure
+          # Install the actual perf binary (the -tools package that the symlink targets)
+          SYMLINK=$(readlink /usr/lib/linux-tools/$(uname -r) 2>/dev/null)
+          TOOLS_PKG=$(basename "$SYMLINK")
+          sudo apt-get install -y "$TOOLS_PKG"
 
       - name: Build abseil from source
         run: |
