@@ -130,13 +130,10 @@ class RelatedEntityPropertyBase(EntityProperty):
 class RelatedOptionalEntityProperty(RelatedEntityPropertyBase):
     __slots__ = RelatedEntityPropertyBase.__slots__
 
-    def __init__(self, label: Label, annotation: OptionalAnnotation) -> None:
-        super().__init__(label, annotation)
-
     def __get__(self, instance: "Entity | None", owner):
         if instance is None:
             return self
-        return instance.__dict__.get(self._cache_attr_name, None)
+        return getattr(instance, self._cache_attr_name, None)
 
     def __set__(self, instance: "Entity", value: Any) -> None:
         check_alive(self._label, value)
@@ -156,10 +153,10 @@ class RelatedOptionalEntityProperty(RelatedEntityPropertyBase):
         return [], {}
 
     def init_cache(self, env: "EnvProtocol", e: "Entity", primitive: Primitive) -> None:
-        pass
+        setattr(e, self._cache_attr_name, None)
 
     def clear_cache(self, e: "Entity") -> None:
-        e.__dict__.pop(self._cache_attr_name, None)
+        setattr(e, self._cache_attr_name, None)
 
     def add_to_cache(self, e: "Entity", what: Any) -> None:
         if is_entity(prev := getattr(e, self._cache_attr_name, None)):
@@ -169,7 +166,7 @@ class RelatedOptionalEntityProperty(RelatedEntityPropertyBase):
             what._inverse.add((e, self._label))
 
     def remove_from_cache(self, e: "Entity", what: "Entity") -> None:
-        e.__dict__.pop(self._cache_attr_name, None)
+        setattr(e, self._cache_attr_name, None)
 
 
 class Uninitialized:
@@ -185,9 +182,6 @@ _uninitialized = Uninitialized()
 
 class RelatedEntityProperty(RelatedEntityPropertyBase):
     __slots__ = RelatedEntityPropertyBase.__slots__
-
-    def __init__(self, label: Label, annotation: ScalarAnnotation) -> None:
-        super().__init__(label, annotation)
 
     def __get__(self, instance: "Entity | None", owner):
         if instance is None:

@@ -104,11 +104,7 @@ class EntityMeta(type):
             extra_lines, extra_locals = property_.compose_init_code()
             init_cache_lines.extend(extra_lines)
             init_code_locals.update(extra_locals)
-            if isinstance(property_, RelatedOptionalEntityProperty):
-                if "__dict__" not in slots:
-                    slots.append("__dict__")
-            else:
-                slots.extend(property_.compose_slots())
+            slots.extend(property_.compose_slots())
 
         ns["__slots__"] = tuple(slots)
 
