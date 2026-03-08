@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include "absl/container/flat_hash_map.h"
 #include "graph.h"
 #include "observer_container.h"
 #include "parser.h"
@@ -16,13 +17,14 @@
 // ============================================================================
 
 struct PickleCache {
-    PyObject* cache = nullptr;
+    // Two-level cache: C++ map from type pointer to per-type Python dict.
+    // Avoids PyTuple_Pack on every lookup; type pointers are stable (immortal).
+    absl::flat_hash_map<PyTypeObject*, PyObject*> type_to_dict;
     PyObject* pickle_module = nullptr;
     PyObject* pickle_dumps = nullptr;
     PyObject* pickle_loads = nullptr;
 
     PickleCache() {
-        cache = PyDict_New();
         pickle_module = PyImport_ImportModule("pickle");
         if (pickle_module) {
             pickle_dumps = PyObject_GetAttrString(pickle_module, "dumps");
@@ -31,20 +33,30 @@ struct PickleCache {
     }
 
     ~PickleCache() {
-        Py_XDECREF(cache);
+        for (auto& [type, dict] : type_to_dict) {
+            Py_XDECREF(dict);
+        }
         Py_XDECREF(pickle_loads);
         Py_XDECREF(pickle_dumps);
         Py_XDECREF(pickle_module);
     }
 
-    std::string get_pickled(PyObject* obj) {
-        PyObject* obj_type = (PyObject*)Py_TYPE(obj);
-        PyObject* cache_key = PyTuple_Pack(2, obj_type, obj);
-        if (!cache_key) return "";
+    PyObject* get_type_dict(PyTypeObject* type) {
+        auto it = type_to_dict.find(type);
+        if (it != type_to_dict.end()) {
+            return it->second;
+        }
+        PyObject* dict = PyDict_New();
+        type_to_dict[type] = dict;
+        return dict;
+    }
 
-        PyObject* cached = PyDict_GetItem(cache, cache_key);
+    std::string get_pickled(PyObject* obj) {
+        PyTypeObject* type = Py_TYPE(obj);
+        PyObject* dict = get_type_dict(type);
+
+        PyObject* cached = PyDict_GetItem(dict, obj);
         if (cached) {
-            Py_DECREF(cache_key);
             char* data;
             Py_ssize_t size;
             PyBytes_AsStringAndSize(cached, &data, &size);
@@ -52,19 +64,16 @@ struct PickleCache {
         }
 
         if (!pickle_dumps) {
-            Py_DECREF(cache_key);
             PyErr_SetString(PyExc_RuntimeError, "pickle.dumps not available");
             return "";
         }
 
         PyObject* result = PyObject_CallFunctionObjArgs(pickle_dumps, obj, NULL);
         if (!result) {
-            Py_DECREF(cache_key);
             return "";
         }
 
         if (!PyBytes_Check(result)) {
-            Py_DECREF(cache_key);
             Py_DECREF(result);
             PyErr_SetString(PyExc_TypeError, "pickle.dumps did not return bytes");
             return "";
@@ -75,8 +84,7 @@ struct PickleCache {
         PyBytes_AsStringAndSize(result, &data, &size);
         std::string pickled(data, size);
 
-        PyDict_SetItem(cache, cache_key, result);
-        Py_DECREF(cache_key);
+        PyDict_SetItem(dict, obj, result);
         Py_DECREF(result);
 
         return pickled;
@@ -97,7 +105,9 @@ struct PickleCache {
     }
 
     void clear() {
-        PyDict_Clear(cache);
+        for (auto& [type, dict] : type_to_dict) {
+            PyDict_Clear(dict);
+        }
     }
 };
 
