@@ -24,7 +24,8 @@ jobs:
           sudo apt-get update && sudo apt-get install -y \
             build-essential cmake git \
             libprotobuf-dev protobuf-compiler libboost-dev libspdlog-dev \
-            bison flex linux-tools-common linux-tools-azure
+            bison flex linux-tools-common
+          sudo apt-get install -y linux-tools-$(uname -r) || sudo apt-get install -y linux-tools-azure
 
       - name: Build abseil from source
         run: |
