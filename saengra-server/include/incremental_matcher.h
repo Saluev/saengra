@@ -55,7 +55,7 @@ private:
     PositionToSubgraphs last_sp_to_sgs_;
     QuerySetObservables start_deps_;
     DepToStartPositions dep_to_positions_;
-    std::unordered_map<Position, Observables> position_to_deps_;
+    absl::flat_hash_map<Position, Observables, std::hash<Position>> position_to_deps_;
 
     PositionToSubgraphs calc_sg_by_sp(const QuerySet& qs) const;
     void fill_deps_from_qs(const QuerySet& qs);
