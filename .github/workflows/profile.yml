@@ -63,7 +63,7 @@ jobs:
               git pull || true
               cd "$WORKDIR/saengra"
             else
-              git clone https://github.com/Saluev/vic.git "$WORKDIR/vic"
+              git clone git@github.com:Saluev/vic.git "$WORKDIR/vic"
             fi
             pip install -r "$WORKDIR/vic/requirements.txt"
 
