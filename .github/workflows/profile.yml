@@ -34,7 +34,7 @@ jobs:
 
             mkdir -p "$WORKDIR" "$RESULTS"
 
-            # Set up saengra
+            echo "Setting up saengra"
             if [ -d "$WORKDIR/saengra" ]; then
               cd "$WORKDIR/saengra"
               git fetch origin
@@ -46,17 +46,17 @@ jobs:
               git checkout "$GIT_REF"
             fi
 
-            # Set up venv
+            echo "Setting up venv"
             if [ ! -d "$WORKDIR/venv" ]; then
               python3 -m venv "$WORKDIR/venv"
             fi
             source "$WORKDIR/venv/bin/activate"
 
-            # Build saengra
+            echo "Building saengra"
             AVOID_HOMEBREW=1 SAENGRA_DEBUG=1 pip install --no-cache-dir --force-reinstall --no-build-isolation -e ".[dev]"
             python -c "from saengra.c_extension import DirectAdapter; print('c_extension OK')"
 
-            # Set up vic
+            echo "Setting up vic"
             if [ -d "$WORKDIR/vic" ]; then
               cd "$WORKDIR/vic"
               git pull || true
@@ -66,7 +66,7 @@ jobs:
             fi
             pip install -r "$WORKDIR/vic/requirements.txt"
 
-            # Run perf
+            echo "Running perf
             perf record -g --call-graph dwarf -o "$RESULTS/perf.data" -- \
               python -m pytest "$WORKDIR/vic/tests/vic/actions" -v -s 2>&1 | tail -20
 
