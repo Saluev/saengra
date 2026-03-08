@@ -71,7 +71,7 @@ jobs:
           HOST: ${{ secrets.HETZNER_HOST }}
           USER: ${{ secrets.HETZNER_USER }}
           GIT_REF: ${{ github.sha }}
-        run:
+        run: |
           SSH="ssh -o StrictHostKeyChecking=no ${USER}@${HOST}"
           $SSH bash -s "$GIT_REF" << 'REMOTE_SCRIPT'
             set -euo pipefail
@@ -95,7 +95,7 @@ jobs:
           HOST: ${{ secrets.HETZNER_HOST }}
           USER: ${{ secrets.HETZNER_USER }}
           GIT_REF: ${{ github.sha }}
-        run:
+        run: |
           SSH="ssh -o StrictHostKeyChecking=no ${USER}@${HOST}"
           $SSH bash -s "$GIT_REF" << 'REMOTE_SCRIPT'
             set -euo pipefail
