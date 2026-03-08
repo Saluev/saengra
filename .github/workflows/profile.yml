@@ -61,7 +61,12 @@ jobs:
 
       - name: Run profiling with perf
         run: |
-          PERF=$(find /usr/lib/linux-tools -name perf -type f 2>/dev/null | head -1)
+          echo "=== Debugging perf installation ==="
+          dpkg -L linux-tools-$(uname -r) 2>/dev/null || true
+          find / -name "perf" -type f 2>/dev/null || true
+          ls -la /usr/lib/linux-tools/ 2>/dev/null || true
+          which perf 2>/dev/null || true
+          PERF=$(find / -name "perf" -path "*/linux-tools/*" -type f 2>/dev/null | head -1)
           if [ -z "$PERF" ]; then PERF=perf; fi
           echo "Using perf: $PERF"
           sudo sysctl -w kernel.perf_event_paranoid=-1
