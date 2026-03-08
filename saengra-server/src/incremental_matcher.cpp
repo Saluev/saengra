@@ -173,7 +173,7 @@ SubgraphChanges IncrementalMatcher::find_subgraph_changes(
 
 //    std::cerr << "Incremental matcher found " << added_subgraphs.size() << " added subgraphs, " << changed_subgraphs.size() << " changed subgraphs, " << removed_subgraphs.size() << " removed subgraphs" << std::endl;
 
-    return SubgraphChanges{added_subgraphs, changed_subgraphs, removed_subgraphs};
+    return {added_subgraphs, changed_subgraphs, removed_subgraphs};
 }
 
 IncrementalUpdate IncrementalMatcher::match_incrementally(const Observations& os) {
@@ -204,7 +204,7 @@ IncrementalUpdate IncrementalMatcher::match_incrementally(const Observations& os
     fill_deps_from_qs(curr_qs);
     auto curr_deps_set = gather_deps_for_sps(start_positions);
 
-    for (const auto sp : start_positions) {
+    for (const auto& sp : start_positions) {
         last_sp_to_sgs_.erase(sp);
     }
     for (const auto& [sp, sgs] : curr_sg_by_sp) {
@@ -228,9 +228,9 @@ IncrementalUpdate IncrementalMatcher::match_incrementally(const Observations& os
         }
     }
 
-    return IncrementalUpdate{
-        std::move(added_deps),
-        std::move(removed_deps),
+    return {
+        added_deps,
+        removed_deps,
         std::move(changes.added_subgraphs),
         std::move(changes.changed_subgraphs),
         std::move(changes.removed_subgraphs)
