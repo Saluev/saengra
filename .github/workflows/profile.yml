@@ -76,6 +76,9 @@ jobs:
             PERF="${TOOLS_DIR}/perf"
           fi
           echo "Using perf binary: $PERF"
+          echo "=== Contents of linux-tools dirs ==="
+          find /usr/lib/linux-*tools* -type f 2>/dev/null | head -20
+          dpkg -L linux-azure-6.14-tools-6.14.0-1017 2>/dev/null | head -20
           ls -la "$PERF" || { echo "perf binary not found"; exit 1; }
           $PERF record -g --call-graph dwarf -o perf.data -- \
             python -m pytest vic/tests/vic/actions -v -s 2>&1 | tee pytest-output.txt || true
