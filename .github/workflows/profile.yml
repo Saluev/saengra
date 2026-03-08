@@ -75,7 +75,9 @@ jobs:
           SSH="ssh -o StrictHostKeyChecking=no ${USER}@${HOST}"
           $SSH bash -s "$GIT_REF" << 'REMOTE_SCRIPT'
             set -euo pipefail
+            GIT_REF="$1"
             WORKDIR="$HOME/profile-run"
+            RESULTS="$HOME/results"
             source "$WORKDIR/venv/bin/activate"
   
             set +e
@@ -97,11 +99,13 @@ jobs:
           SSH="ssh -o StrictHostKeyChecking=no ${USER}@${HOST}"
           $SSH bash -s "$GIT_REF" << 'REMOTE_SCRIPT'
             set -euo pipefail
+            GIT_REF="$1"
             WORKDIR="$HOME/profile-run"
+            RESULTS="$HOME/results"
             source "$WORKDIR/venv/bin/activate"
 
             set +e
-            perf record -g --call-graph dwarf -o "$RESULTS/perf.data" -- 
+            perf record -g --call-graph dwarf -o "$RESULTS/perf.data" -- \
               python -m pytest "$WORKDIR/vic/tests/vic/profiling" -v -s 2>&1 | tail -20
             set -e
             
