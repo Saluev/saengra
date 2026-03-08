@@ -42,8 +42,8 @@ def primitive(cls: Type) -> Type:
 
     # Optimized pickle functions (compared to standard library at its current state):
     result_fields = fields(result)
-    getstate_code = f"def __getstate__(self): return [{', '.join(f'self.{f.name}' for f in result_fields)}]"
-    setstate_code = f"def __setstate__(self, state):\n  " + (
+    getstate_code = f"def __getstate_{result.__name__}__(self): return [{', '.join(f'self.{f.name}' for f in result_fields)}]"
+    setstate_code = f"def __setstate_{result.__name__}__(self, state):\n  " + (
         "\n  ".join(
             f"  _object_setattr(self, {f.name!r}, state[{i}])"
             for i, f in enumerate(result_fields)
@@ -55,8 +55,8 @@ def primitive(cls: Type) -> Type:
     locals_ = {}
     exec(getstate_code, {}, locals_)
     exec(setstate_code, globals_, locals_)
-    result.__getstate__ = locals_["__getstate__"]
-    result.__setstate__ = locals_["__setstate__"]
+    result.__getstate__ = locals_[f"__getstate_{result.__name__}__"]
+    result.__setstate__ = locals_[f"__setstate_{result.__name__}__"]
 
     setattr(result, PRIMITIVE_MARKER_ATTR_NAME, True)
     return result
