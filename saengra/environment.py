@@ -198,7 +198,7 @@ class Environment(EnvProtocol):
             if should_commit_again and num_iterations > 100:
                 raise RuntimeError("stuck in pre-commit loop")
         after = perf_counter()
-        logger.debug(
+        logger.info(
             f"Commit took {num_iterations} iterations, {after - before:.3f} seconds"
         )
 
