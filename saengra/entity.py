@@ -1,6 +1,6 @@
 import sys
 import typing
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from inspect import getmodule
 from typing import (
     Any,
@@ -39,6 +39,25 @@ class EnvProtocol(Protocol):
 @typing.dataclass_transform(eq_default=True, order_default=True, frozen_default=True)
 def primitive(cls: Type) -> Type:
     result = dataclass(frozen=True, slots=True, order=True)(cls)
+
+    # Optimized pickle functions (compared to standard library at its current state):
+    result_fields = fields(result)
+    getstate_code = f"def __getstate__(self): return [{', '.join(f'self.{f.name}' for f in result_fields)}]"
+    setstate_code = f"def __setstate__(self, state):\n  " + (
+        "\n  ".join(
+            f"  _object_setattr(self, {f.name!r}, state[{i}])"
+            for i, f in enumerate(result_fields)
+        )
+        if result_fields
+        else "pass"
+    )
+    globals_ = {"_object_setattr": object.__setattr__}
+    locals_ = {}
+    exec(getstate_code, {}, locals_)
+    exec(setstate_code, globals_, locals_)
+    result.__getstate__ = locals_["__getstate__"]
+    result.__setstate__ = locals_["__setstate__"]
+
     setattr(result, PRIMITIVE_MARKER_ATTR_NAME, True)
     return result
 
@@ -388,6 +407,7 @@ class Entity(metaclass=EntityMeta):
         for attr_name in cls.__annotations__:
             prop = getattr(cls, attr_name)
             prop.reset_cache(env, self, primitive)
+
 
 PRIMITIVE_MARKER_ATTR_NAME = "__saengra_primitive__"
 
