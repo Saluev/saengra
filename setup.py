@@ -39,7 +39,7 @@ class CMakeBuild(build_ext):
             f"-DPython_ROOT_DIR={sys.prefix}",
             f"-DPython_INCLUDE_DIR={python_include}",
             f"-DPython_FIND_STRATEGY=LOCATION",
-            f"-DCMAKE_BUILD_TYPE={'Debug' if self.debug else 'Release'}",
+            f"-DCMAKE_BUILD_TYPE={'RelWithDebInfo' if os.environ.get('SAENGRA_DEBUG') else 'Release'}",
             f"-DSAENGRA_STATIC_DEPS={'ON' if os.environ.get('SAENGRA_STATIC_DEPS') else 'OFF'}",
         ]
 
