@@ -53,6 +53,7 @@ jobs:
             source "$WORKDIR/venv/bin/activate"
 
             echo "Building saengra"
+            pip install setuptools wheel "cmake>=3.15"
             AVOID_HOMEBREW=1 SAENGRA_DEBUG=1 pip install --no-cache-dir --force-reinstall --no-build-isolation -e ".[dev]"
             python -c "from saengra.c_extension import DirectAdapter; print('c_extension OK')"
 
