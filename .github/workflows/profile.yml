@@ -97,8 +97,8 @@ jobs:
         run: |
           mkdir -p results
           SCP="scp -o StrictHostKeyChecking=no"
-          $SCP "${USER}@${HOST}:~/results/profile-report.txt" results/
-          $SCP "${USER}@${HOST}:~/results/perf.data" results/ || true
+          $SCP "${USER}@${HOST}:~/results/actions-report.txt" results/
+          $SCP "${USER}@${HOST}:~/results/profiling-report.txt" results/
 
       - uses: actions/upload-artifact@v4
         with:
