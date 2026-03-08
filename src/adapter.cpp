@@ -135,6 +135,12 @@ typedef struct {
     saengra::ObserverContainer* observer_container;
     PickleCache* pickle_cache;
     std::vector<saengra::NativeUpdate>* pending_updates;
+    // Cached type pointers for fast dispatch in convert_one_update
+    PyTypeObject* AddEdge_type;
+    PyTypeObject* RemoveEdgesToAll_type;
+    PyTypeObject* AddVertex_type;
+    PyTypeObject* RemoveVertex_type;
+    PyTypeObject* RemoveEdge_type;
 } DirectAdapterObject;
 
 // Helper: convert a Python Primitive to (type_name, pickled_value)
@@ -161,6 +167,11 @@ static void DirectAdapter_dealloc(DirectAdapterObject* self) {
     delete self->observer_container;
     delete self->graph;
     delete self->pickle_cache;
+    Py_XDECREF(self->AddEdge_type);
+    Py_XDECREF(self->RemoveEdgesToAll_type);
+    Py_XDECREF(self->AddVertex_type);
+    Py_XDECREF(self->RemoveVertex_type);
+    Py_XDECREF(self->RemoveEdge_type);
     Py_TYPE(self)->tp_free((PyObject*)self);
 }
 
@@ -176,18 +187,33 @@ static PyObject* DirectAdapter_new(PyTypeObject* type, PyObject* args, PyObject*
 }
 
 static int DirectAdapter_init(DirectAdapterObject* self, PyObject* args, PyObject* kwds) {
+    // Cache update type pointers for fast dispatch (avoids get_type_name string comparison)
+    PyObject* graph_module = PyImport_ImportModule("saengra.graph");
+    if (!graph_module) return -1;
+
+    self->AddEdge_type = (PyTypeObject*)PyObject_GetAttrString(graph_module, "AddEdge");
+    self->RemoveEdgesToAll_type = (PyTypeObject*)PyObject_GetAttrString(graph_module, "RemoveEdgesToAll");
+    self->AddVertex_type = (PyTypeObject*)PyObject_GetAttrString(graph_module, "AddVertex");
+    self->RemoveVertex_type = (PyTypeObject*)PyObject_GetAttrString(graph_module, "RemoveVertex");
+    self->RemoveEdge_type = (PyTypeObject*)PyObject_GetAttrString(graph_module, "RemoveEdge");
+    Py_DECREF(graph_module);
+
+    if (!self->AddEdge_type || !self->RemoveEdgesToAll_type || !self->AddVertex_type ||
+        !self->RemoveVertex_type || !self->RemoveEdge_type) {
+        return -1;
+    }
+
     return 0;
 }
 
 // --- update(update_or_updates) ---
 
 static bool convert_one_update(DirectAdapterObject* self, PyObject* update) {
-    std::string class_name = get_type_name(update);
-    if (class_name.empty() && PyErr_Occurred()) return false;
+    PyTypeObject* update_type = Py_TYPE(update);
 
     saengra::NativeUpdate native_update;
 
-    if (class_name == "AddEdge") {
+    if (update_type == self->AddEdge_type) {
         native_update.kind = saengra::NativeUpdateKind::AddEdge;
 
         PyObject* from_obj = PyObject_GetAttrString(update, "from_");
@@ -214,7 +240,7 @@ static bool convert_one_update(DirectAdapterObject* self, PyObject* update) {
 
         Py_DECREF(from_obj); Py_DECREF(label_obj); Py_DECREF(to_obj);
 
-    } else if (class_name == "RemoveEdgesToAll") {
+    } else if (update_type == self->RemoveEdgesToAll_type) {
         native_update.kind = saengra::NativeUpdateKind::RemoveEdgesToAll;
 
         PyObject* from_obj = PyObject_GetAttrString(update, "from_");
@@ -239,7 +265,7 @@ static bool convert_one_update(DirectAdapterObject* self, PyObject* update) {
 
         Py_DECREF(from_obj); Py_DECREF(label_obj);
 
-    } else if (class_name == "AddVertex") {
+    } else if (update_type == self->AddVertex_type) {
         native_update.kind = saengra::NativeUpdateKind::AddVertex;
 
         PyObject* primitive = PyObject_GetAttrString(update, "primitive");
@@ -251,7 +277,7 @@ static bool convert_one_update(DirectAdapterObject* self, PyObject* update) {
         }
         Py_DECREF(primitive);
 
-    } else if (class_name == "RemoveVertex") {
+    } else if (update_type == self->RemoveVertex_type) {
         native_update.kind = saengra::NativeUpdateKind::RemoveVertex;
 
         PyObject* primitive = PyObject_GetAttrString(update, "primitive");
@@ -263,7 +289,7 @@ static bool convert_one_update(DirectAdapterObject* self, PyObject* update) {
         }
         Py_DECREF(primitive);
 
-    } else if (class_name == "RemoveEdge") {
+    } else if (update_type == self->RemoveEdge_type) {
         native_update.kind = saengra::NativeUpdateKind::RemoveEdge;
 
         PyObject* from_obj = PyObject_GetAttrString(update, "from_");
@@ -291,7 +317,7 @@ static bool convert_one_update(DirectAdapterObject* self, PyObject* update) {
         Py_DECREF(from_obj); Py_DECREF(label_obj); Py_DECREF(to_obj);
 
     } else {
-        PyErr_Format(PyExc_TypeError, "not an update: %s", class_name.c_str());
+        PyErr_Format(PyExc_TypeError, "not an update: %s", update_type->tp_name);
         return false;
     }
 
