@@ -61,11 +61,14 @@ jobs:
 
       - name: Run profiling with perf
         run: |
+          PERF=$(find /usr/lib/linux-tools -name perf -type f 2>/dev/null | head -1)
+          if [ -z "$PERF" ]; then PERF=perf; fi
+          echo "Using perf: $PERF"
           sudo sysctl -w kernel.perf_event_paranoid=-1
           sudo sysctl -w kernel.kptr_restrict=0
-          perf record -g --call-graph dwarf -o perf.data -- \
+          $PERF record -g --call-graph dwarf -o perf.data -- \
             python -m pytest vic/tests/vic/actions -v -s 2>&1 | tee pytest-output.txt || true
-          perf report -n --stdio --sort=sym,srcline -g none -i perf.data > profile-report.txt 2>/dev/null || true
+          $PERF report -n --stdio --sort=sym,srcline -g none -i perf.data > profile-report.txt 2>/dev/null || true
           echo "=== Profile Report (top 80) ==="
           head -80 profile-report.txt
 
