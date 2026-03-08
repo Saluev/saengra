@@ -74,7 +74,16 @@ jobs:
             set -e
 
             perf report -n --stdio --sort=sym,srcline -g none \
-              -i "$RESULTS/perf.data" > "$RESULTS/profile-report.txt" 2>/dev/null
+              -i "$RESULTS/perf.data" > "$RESULTS/actions-report.txt" 2>/dev/null
+          
+            set +e
+            perf record -g --call-graph dwarf -o "$RESULTS/perf.data" -- \
+              python -m pytest "$WORKDIR/vic/tests/vic/profiling" -v -s 2>&1 | tail -20
+            set -e
+
+            perf report -n --stdio --sort=sym,srcline -g none \
+              -i "$RESULTS/perf.data" > "$RESULTS/profiling-report.txt" 2>/dev/null
+            rm "$RESULTS/perf.data"
 
             echo "=== Profile Report (top 80) ==="
             head -80 "$RESULTS/profile-report.txt"
