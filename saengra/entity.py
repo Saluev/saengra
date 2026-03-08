@@ -1,5 +1,4 @@
 import sys
-import typing
 from dataclasses import dataclass, fields
 from inspect import getmodule
 from typing import (
@@ -8,6 +7,7 @@ from typing import (
     Self,
     Type,
     TypeAlias,
+    dataclass_transform,
 )
 
 from saengra.graph import Primitive, Label, Update
@@ -36,7 +36,7 @@ class EnvProtocol(Protocol):
         pass
 
 
-@typing.dataclass_transform(eq_default=True, order_default=True, frozen_default=True)
+@dataclass_transform(eq_default=True, order_default=True, frozen_default=True)
 def primitive(cls: Type) -> Type:
     result = dataclass(frozen=True, slots=True, order=True)(cls)
 
