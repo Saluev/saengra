@@ -85,7 +85,7 @@ jobs:
               python -m pytest "$WORKDIR/vic/tests/vic/actions" -v -s 2>&1 | tail -20
             set -e
             
-            perf report -n --show-total-period --stdio --sort=sym,srcline -g none -i "$RESULTS/perf.data" > "$RESULTS/actions-report.txt" 2>/dev/null
+            perf report -n --show-total-period --stdio --sort=sym -g none -i "$RESULTS/perf.data" > "$RESULTS/actions-report.txt" 2>/dev/null
     
             rm "$RESULTS/perf.data"
           REMOTE_SCRIPT
@@ -109,7 +109,7 @@ jobs:
               python -m pytest "$WORKDIR/vic/tests/vic/profiling" -v -s 2>&1 | tail -20
             set -e
             
-            perf report -n --show-total-period --stdio --sort=sym,srcline -g none -i "$RESULTS/perf.data" > "$RESULTS/benchmarks-report.txt" 2>/dev/null
+            perf report -n --show-total-period --stdio --sort=sym -g none -i "$RESULTS/perf.data" > "$RESULTS/benchmarks-report.txt" 2>/dev/null
             rm "$RESULTS/perf.data"
           REMOTE_SCRIPT
 
