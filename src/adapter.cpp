@@ -1,5 +1,6 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
+#include <structmember.h>
 #include <string>
 #include <vector>
 #include <memory>
@@ -141,7 +142,36 @@ typedef struct {
     PyTypeObject* AddVertex_type;
     PyTypeObject* RemoveVertex_type;
     PyTypeObject* RemoveEdge_type;
+    // Slot offsets for direct memory access (avoids PyObject_GetAttr entirely)
+    Py_ssize_t off_AddEdge_from;
+    Py_ssize_t off_AddEdge_label;
+    Py_ssize_t off_AddEdge_to;
+    Py_ssize_t off_RemoveEdgesToAll_from;
+    Py_ssize_t off_RemoveEdgesToAll_label;
+    Py_ssize_t off_AddVertex_primitive;
+    Py_ssize_t off_RemoveVertex_primitive;
+    Py_ssize_t off_RemoveEdge_from;
+    Py_ssize_t off_RemoveEdge_label;
+    Py_ssize_t off_RemoveEdge_to;
 } DirectAdapterObject;
+
+// Read a PyObject* slot directly from an object at a given byte offset.
+static inline PyObject* slot_get(PyObject* obj, Py_ssize_t offset) {
+    return *(PyObject**)((char*)obj + offset);
+}
+
+// Find the byte offset of a named member in a type's tp_members table.
+// Returns -1 if not found.
+static Py_ssize_t find_member_offset(PyTypeObject* type, const char* name) {
+    PyMemberDef* members = type->tp_members;
+    if (!members) return -1;
+    for (PyMemberDef* m = members; m->name != nullptr; m++) {
+        if (strcmp(m->name, name) == 0) {
+            return m->offset;
+        }
+    }
+    return -1;
+}
 
 // Helper: convert a Python Primitive to (type_name, pickled_value)
 static bool primitive_to_vertex_data(DirectAdapterObject* self, PyObject* obj,
@@ -203,6 +233,18 @@ static int DirectAdapter_init(DirectAdapterObject* self, PyObject* args, PyObjec
         return -1;
     }
 
+    // Look up slot offsets for direct memory access
+    self->off_AddEdge_from = find_member_offset(self->AddEdge_type, "from_");
+    self->off_AddEdge_label = find_member_offset(self->AddEdge_type, "label");
+    self->off_AddEdge_to = find_member_offset(self->AddEdge_type, "to");
+    self->off_RemoveEdgesToAll_from = find_member_offset(self->RemoveEdgesToAll_type, "from_");
+    self->off_RemoveEdgesToAll_label = find_member_offset(self->RemoveEdgesToAll_type, "label");
+    self->off_AddVertex_primitive = find_member_offset(self->AddVertex_type, "primitive");
+    self->off_RemoveVertex_primitive = find_member_offset(self->RemoveVertex_type, "primitive");
+    self->off_RemoveEdge_from = find_member_offset(self->RemoveEdge_type, "from_");
+    self->off_RemoveEdge_label = find_member_offset(self->RemoveEdge_type, "label");
+    self->off_RemoveEdge_to = find_member_offset(self->RemoveEdge_type, "to");
+
     return 0;
 }
 
@@ -216,105 +258,64 @@ static bool convert_one_update(DirectAdapterObject* self, PyObject* update) {
     if (update_type == self->AddEdge_type) {
         native_update.kind = saengra::NativeUpdateKind::AddEdge;
 
-        PyObject* from_obj = PyObject_GetAttrString(update, "from_");
-        PyObject* label_obj = PyObject_GetAttrString(update, "label");
-        PyObject* to_obj = PyObject_GetAttrString(update, "to");
-
-        if (!from_obj || !label_obj || !to_obj) {
-            Py_XDECREF(from_obj); Py_XDECREF(label_obj); Py_XDECREF(to_obj);
-            return false;
-        }
+        PyObject* from_obj = slot_get(update, self->off_AddEdge_from);
+        PyObject* label_obj = slot_get(update, self->off_AddEdge_label);
+        PyObject* to_obj = slot_get(update, self->off_AddEdge_to);
 
         const char* label = PyUnicode_AsUTF8(label_obj);
-        if (!label) {
-            Py_DECREF(from_obj); Py_DECREF(label_obj); Py_DECREF(to_obj);
-            return false;
-        }
+        if (!label) return false;
         native_update.label = label;
 
         if (!primitive_to_vertex_data(self, from_obj, native_update.from.type_name, native_update.from.value) ||
             !primitive_to_vertex_data(self, to_obj, native_update.to.type_name, native_update.to.value)) {
-            Py_DECREF(from_obj); Py_DECREF(label_obj); Py_DECREF(to_obj);
             return false;
         }
-
-        Py_DECREF(from_obj); Py_DECREF(label_obj); Py_DECREF(to_obj);
 
     } else if (update_type == self->RemoveEdgesToAll_type) {
         native_update.kind = saengra::NativeUpdateKind::RemoveEdgesToAll;
 
-        PyObject* from_obj = PyObject_GetAttrString(update, "from_");
-        PyObject* label_obj = PyObject_GetAttrString(update, "label");
-
-        if (!from_obj || !label_obj) {
-            Py_XDECREF(from_obj); Py_XDECREF(label_obj);
-            return false;
-        }
+        PyObject* from_obj = slot_get(update, self->off_RemoveEdgesToAll_from);
+        PyObject* label_obj = slot_get(update, self->off_RemoveEdgesToAll_label);
 
         const char* label = PyUnicode_AsUTF8(label_obj);
-        if (!label) {
-            Py_DECREF(from_obj); Py_DECREF(label_obj);
-            return false;
-        }
+        if (!label) return false;
         native_update.label = label;
 
         if (!primitive_to_vertex_data(self, from_obj, native_update.from.type_name, native_update.from.value)) {
-            Py_DECREF(from_obj); Py_DECREF(label_obj);
             return false;
         }
-
-        Py_DECREF(from_obj); Py_DECREF(label_obj);
 
     } else if (update_type == self->AddVertex_type) {
         native_update.kind = saengra::NativeUpdateKind::AddVertex;
 
-        PyObject* primitive = PyObject_GetAttrString(update, "primitive");
-        if (!primitive) return false;
-
+        PyObject* primitive = slot_get(update, self->off_AddVertex_primitive);
         if (!primitive_to_vertex_data(self, primitive, native_update.from.type_name, native_update.from.value)) {
-            Py_DECREF(primitive);
             return false;
         }
-        Py_DECREF(primitive);
 
     } else if (update_type == self->RemoveVertex_type) {
         native_update.kind = saengra::NativeUpdateKind::RemoveVertex;
 
-        PyObject* primitive = PyObject_GetAttrString(update, "primitive");
-        if (!primitive) return false;
-
+        PyObject* primitive = slot_get(update, self->off_RemoveVertex_primitive);
         if (!primitive_to_vertex_data(self, primitive, native_update.from.type_name, native_update.from.value)) {
-            Py_DECREF(primitive);
             return false;
         }
-        Py_DECREF(primitive);
 
     } else if (update_type == self->RemoveEdge_type) {
         native_update.kind = saengra::NativeUpdateKind::RemoveEdge;
 
-        PyObject* from_obj = PyObject_GetAttrString(update, "from_");
-        PyObject* label_obj = PyObject_GetAttrString(update, "label");
-        PyObject* to_obj = PyObject_GetAttrString(update, "to");
-
-        if (!from_obj || !label_obj || !to_obj) {
-            Py_XDECREF(from_obj); Py_XDECREF(label_obj); Py_XDECREF(to_obj);
-            return false;
-        }
+        PyObject* from_obj = slot_get(update, self->off_RemoveEdge_from);
+        PyObject* label_obj = slot_get(update, self->off_RemoveEdge_label);
+        PyObject* to_obj = slot_get(update, self->off_RemoveEdge_to);
 
         const char* label = PyUnicode_AsUTF8(label_obj);
-        if (!label) {
-            Py_DECREF(from_obj); Py_DECREF(label_obj); Py_DECREF(to_obj);
-            return false;
-        }
+        if (!label) return false;
         native_update.label = label;
 
         if (!primitive_to_vertex_data(self, from_obj, native_update.from.type_name, native_update.from.value) ||
             !primitive_to_vertex_data(self, to_obj, native_update.to.type_name, native_update.to.value)) {
-            Py_DECREF(from_obj); Py_DECREF(label_obj); Py_DECREF(to_obj);
             return false;
         }
-
-        Py_DECREF(from_obj); Py_DECREF(label_obj); Py_DECREF(to_obj);
 
     } else {
         PyErr_Format(PyExc_TypeError, "not an update: %s", update_type->tp_name);
