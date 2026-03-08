@@ -68,9 +68,9 @@ jobs:
         run: |
           sudo sysctl -w kernel.perf_event_paranoid=-1
           sudo sysctl -w kernel.kptr_restrict=0
-          $PERF record -g --call-graph dwarf -o perf.data -- \
+          perf record -g --call-graph dwarf -o perf.data -- \
             python -m pytest vic/tests/vic/actions -v -s 2>&1 | tee pytest-output.txt || true
-          $PERF report -n --stdio --sort=sym,srcline -g none -i perf.data > profile-report.txt 2>/dev/null || true
+          perf report -n --stdio --sort=sym,srcline -g none -i perf.data > profile-report.txt 2>/dev/null || true
           echo "=== Profile Report (top 80) ==="
           head -80 profile-report.txt
 
