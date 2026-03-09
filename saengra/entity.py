@@ -267,9 +267,14 @@ class Entity(metaclass=EntityMeta):
         return NotImplemented
 
     def __eq__(self, other: Any) -> bool:
-        if isinstance(other, Entity):
-            other = other.primitive
+        # `other` can't be an `Entity`, because by construction of the entity
+        # graph there can't be two identical entities, __new__ would return
+        # an already existing one. And if we compare with `==` against the
+        # same object, Python optimizes it and doesn't invoke `__eq__`.
         return self.primitive == other
+
+    def __ne__(self, other: Any) -> bool:
+        return self.primitive != other
 
     def __repr__(self) -> str:
         result = repr(self.primitive)
