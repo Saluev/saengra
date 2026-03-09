@@ -42,15 +42,25 @@ def primitive(cls: Type) -> Type:
 
     # Optimized pickle functions (compared to standard library at its current state):
     result_fields = fields(result)
-    getstate_code = f"def __getstate_{result.__name__}__(self): return [{', '.join(f'self.{f.name}' for f in result_fields)}]"
-    setstate_code = f"def __setstate_{result.__name__}__(self, state):\n  " + (
-        "\n  ".join(
-            f"  _object_setattr(self, {f.name!r}, state[{i}])"
-            for i, f in enumerate(result_fields)
+    if len(result_fields) == 1:
+        (f,) = result_fields
+        getstate_code = (
+            f"def __getstate_{result.__name__}__(self): return self.{f.name}"
         )
-        if result_fields
-        else "pass"
-    )
+        setstate_code = f"def __setstate_{result.__name__}__(self, state): _object_setattr(self, {f.name!r}, state)"
+    elif result_fields:
+        getstate_code = f"def __getstate_{result.__name__}__(self): return {', '.join(f'self.{f.name}' for f in result_fields)}"
+        setstate_code = f"def __setstate_{result.__name__}__(self, state):\n  " + (
+            "\n  ".join(
+                f"  _object_setattr(self, {f.name!r}, state[{i}])"
+                for i, f in enumerate(result_fields)
+            )
+        )
+    else:
+        # Since __setstate__ is essentially a no-op here, we can return None
+        # from __getstate__ and make pickle avoid calling __setstate__ whatsoever.
+        getstate_code = f"def __getstate_{result.__name__}__(self): return None"
+        setstate_code = f"def __setstate_{result.__name__}__(self, state): pass"
     globals_ = {"_object_setattr": object.__setattr__}
     locals_ = {}
     exec(getstate_code, {}, locals_)
