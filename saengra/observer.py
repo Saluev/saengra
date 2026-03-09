@@ -1,6 +1,7 @@
-from typing import TypeAlias, Protocol, Any
+from typing import Any, Protocol, TypeAlias
 
-from saengra.api import Observer as APIObserver, ObservationType
+from saengra.api import ObservationType
+from saengra.api import Observer as APIObserver
 from saengra.graph import Primitive
 
 

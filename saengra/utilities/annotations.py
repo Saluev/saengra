@@ -1,10 +1,11 @@
 import typing
-from _operator import or_
 from dataclasses import dataclass
 from functools import reduce
 from types import GenericAlias, UnionType
-from typing import Any, ForwardRef
 from typing import _UnionGenericAlias  # type: ignore
+from typing import Any, ForwardRef
+
+from _operator import or_
 
 from saengra.utilities.typing import Module
 

@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from saengra import messages_pb2
-from saengra.graph import Primitive, Edge, Subgraph
+from saengra.graph import Edge, Primitive, Subgraph
 
 
 @dataclass(frozen=True)

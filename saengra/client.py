@@ -10,22 +10,21 @@ import time
 from pathlib import Path
 from typing import Iterable
 
-# from saengra_pyproto import Converter as ConverterV2
-
 from saengra import messages_pb2
 from saengra.api import CommitResponse, FindResponse, MatchResponse, Observer
 from saengra.conversions import Converter
+from saengra.errors import CommitError, ConnectError
+from saengra.errors import ConnectionError as SaengraConnectionError
 from saengra.errors import (
-    ConnectionError as SaengraConnectionError,
-    UpdateError,
-    CommitError,
-    RollbackError,
-    ObserveError,
-    ConnectError,
     FindError,
     MatchError,
+    ObserveError,
+    RollbackError,
+    UpdateError,
 )
-from saengra.graph import Update, Primitive
+from saengra.graph import Primitive, Update
+
+# from saengra_pyproto import Converter as ConverterV2
 
 
 def find_server_binary() -> str:

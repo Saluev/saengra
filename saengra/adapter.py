@@ -1,7 +1,7 @@
 from typing import Iterable, Protocol, TypeAlias
 
 from saengra.api import Observation, Observer
-from saengra.graph import Update, Primitive, Edge, Subgraph
+from saengra.graph import Edge, Primitive, Subgraph, Update
 
 ShouldCommitAgain: TypeAlias = bool
 

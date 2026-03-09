@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import TypeVar, Any, get_args
+from typing import Any, TypeVar, get_args
 
 from frozendict import frozendict as fd
 

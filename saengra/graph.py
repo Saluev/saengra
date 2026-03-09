@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import TypeAlias, Hashable, Literal
+from typing import Hashable, Literal, TypeAlias
 
 from saengra.frozendict import frozendict
 

@@ -1,16 +1,17 @@
 from sys import intern
-from typing import Any, assert_never, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, assert_never
 
-from saengra.utilities.typing import is_entity, check_alive
+from saengra.utilities.typing import check_alive, is_entity
 
 if TYPE_CHECKING:
     from saengra.entity import EnvProtocol, Entity
-from saengra.graph import Label, Primitive, RemoveEdgesToAll, AddVertex, AddEdge
+
+from saengra.graph import AddEdge, AddVertex, Label, Primitive, RemoveEdgesToAll
 from saengra.utilities.annotations import (
     CollectionAnnotation,
-    ScalarAnnotation,
     OptionalAnnotation,
     ParsedAnnotation,
+    ScalarAnnotation,
 )
 from saengra.utilities.containers import RelatedEntitiesSet
 

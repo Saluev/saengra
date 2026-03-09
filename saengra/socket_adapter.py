@@ -1,9 +1,9 @@
 from typing import Iterable
 
 from saengra.adapter import ShouldCommitAgain
-from saengra.api import Observation, CommitStatus, Observer
+from saengra.api import CommitStatus, Observation, Observer
 from saengra.client import SaengraClient
-from saengra.graph import Update, Primitive, Edge, Subgraph
+from saengra.graph import Edge, Primitive, Subgraph, Update
 
 
 class SocketAdapter:

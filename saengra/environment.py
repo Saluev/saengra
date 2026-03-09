@@ -1,19 +1,19 @@
 from functools import cache
 from time import perf_counter
-from typing import Type, TypeVar, Iterable
+from typing import Iterable, Type, TypeVar
 from weakref import WeakValueDictionary
 
 from saengra.adapter import Adapter
-from saengra.c_extension import DirectAdapter
-from saengra.socket_adapter import SocketAdapter
 from saengra.api import Observation
+from saengra.c_extension import DirectAdapter
 from saengra.client import SaengraClient
 from saengra.entity import Entity, EnvProtocol
-from saengra.graph import Primitive, Update, AddVertex, RemoveVertex, Edge, Refs
+from saengra.graph import AddVertex, Edge, Primitive, RemoveVertex, Update
 from saengra.observer import Observer, RefsHandler
+from saengra.socket_adapter import SocketAdapter
 from saengra.utilities.colors import light_green
 from saengra.utilities.itertools import group_by
-from saengra.utilities.loggers import logger, LazyRefsFormatter
+from saengra.utilities.loggers import LazyRefsFormatter, logger
 
 T = TypeVar("T")
 

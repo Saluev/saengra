@@ -2,7 +2,7 @@ import logging
 import sys
 
 from saengra.graph import Primitive
-from saengra.utilities.colors import cyan, green, yellow, red, bold_red
+from saengra.utilities.colors import bold_red, cyan, green, red, yellow
 
 COLORS = {
     "DEBUG": cyan,

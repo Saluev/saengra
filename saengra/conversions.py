@@ -1,30 +1,27 @@
 import pickle
-from weakref import WeakKeyDictionary
-
-from frozendict import frozendict
 
 from saengra import messages_pb2
 from saengra.api import (
-    Edge,
-    Observer,
-    Observation,
-    ObservationType,
     CommitResponse,
     CommitStatus,
+    Edge,
     FindResponse,
     MatchResponse,
+    Observation,
+    ObservationType,
+    Observer,
 )
 from saengra.graph import (
-    Primitive,
-    Update,
-    AddVertex,
     AddEdge,
-    RemoveVertex,
+    AddVertex,
+    Position,
+    Primitive,
+    Refs,
     RemoveEdge,
     RemoveEdgesToAll,
-    Position,
+    RemoveVertex,
     Subgraph,
-    Refs,
+    Update,
 )
 
 ApplyUpdates_Update_UpdateKind = messages_pb2.ApplyUpdates.Update.UpdateKind

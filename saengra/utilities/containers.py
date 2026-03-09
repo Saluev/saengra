@@ -1,4 +1,4 @@
-from typing import Iterator, Iterable, Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Iterable, Iterator
 
 from saengra.utilities.typing import is_entity
 
@@ -6,13 +6,13 @@ if TYPE_CHECKING:
     from saengra.entity import EnvProtocol, Entity
 
 from saengra.graph import (
-    Primitive,
-    Label,
-    AddVertex,
     AddEdge,
+    AddVertex,
+    Label,
+    Primitive,
     RemoveEdge,
-    Update,
     RemoveEdgesToAll,
+    Update,
 )
 
 

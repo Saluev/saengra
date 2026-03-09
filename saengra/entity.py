@@ -1,16 +1,9 @@
 import sys
 from dataclasses import dataclass, fields
 from inspect import getmodule
-from typing import (
-    Any,
-    Protocol,
-    Self,
-    Type,
-    TypeAlias,
-    dataclass_transform,
-)
+from typing import Any, Protocol, Self, Type, TypeAlias, dataclass_transform
 
-from saengra.graph import Primitive, Label, Update
+from saengra.graph import Label, Primitive, Update
 from saengra.utilities.typing import check_alive
 
 
@@ -93,11 +86,10 @@ InverseRefs: TypeAlias = set[tuple["Entity", Label]]
 class EntityMeta(type):
     def __new__(mcls, name: str, bases: tuple[type, ...], ns: dict[str, Any]) -> type:
         from saengra.utilities.annotations import parse_annotation
-        from saengra.utilities.properties import related_entity_property
-        from saengra.utilities.properties import EntityProperty
         from saengra.utilities.properties import (
+            EntityProperty,
             PrimitiveProperty,
-            RelatedOptionalEntityProperty,
+            related_entity_property,
         )
 
         module = sys.modules[ns["__module__"]]
@@ -199,8 +191,10 @@ class Entity(metaclass=EntityMeta):
 
     def __init_subclass__(cls) -> None:
         from saengra.utilities.annotations import parse_annotation
-        from saengra.utilities.properties import related_entity_property
-        from saengra.utilities.properties import PrimitiveProperty
+        from saengra.utilities.properties import (
+            PrimitiveProperty,
+            related_entity_property,
+        )
 
         super().__init_subclass__()
 

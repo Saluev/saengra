@@ -1,4 +1,4 @@
-from typing import TypeVar, Generic, Type, Any
+from typing import Any, Generic, Type, TypeVar
 
 from saengra.entity import Entity
 from saengra.environment import Environment
