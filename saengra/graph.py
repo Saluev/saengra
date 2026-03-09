@@ -8,6 +8,10 @@ Vertex: TypeAlias = Primitive
 Label: TypeAlias = str
 
 
+# Store reference to the function in module globals for maximum performance.
+_object_setattr = object.__setattr__
+
+
 @dataclass(frozen=True, slots=True)
 class Edge:
     from_: Vertex
@@ -17,6 +21,16 @@ class Edge:
     @property
     def reverse(self) -> "Edge":
         return Edge(from_=self.to, label=self.label, to=self.from_)
+
+    # Manual implementations are way faster compared to built-in _dataclass_getstate()/_dataclass_setstate().
+    # And since edges can be frequently pickled (e. g. to save graph snapshot), it's better to have this here.
+    def __getstate__(self) -> tuple[Vertex, Label, Vertex]:
+        return self.from_, self.label, self.to
+
+    def __setstate__(self, state: tuple[Vertex, Label, Vertex]) -> None:
+        _object_setattr(self, "from_", state[0])
+        _object_setattr(self, "label", state[1])
+        _object_setattr(self, "to", state[2])
 
 
 def reverse(edge: Edge) -> Edge:
