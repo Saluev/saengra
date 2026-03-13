@@ -21,8 +21,8 @@ jobs:
           - { os: ubuntu-22.04, arch: aarch64, python: "311" }
           - { os: ubuntu-22.04, arch: aarch64, python: "312" }
           # macOS arm64
-          - { os: macos-15, arch: arm64, python: "311" }
-          - { os: macos-15, arch: arm64, python: "312" }
+#          - { os: macos-15, arch: arm64, python: "311" }
+#          - { os: macos-15, arch: arm64, python: "312" }
 
     steps:
       - uses: actions/checkout@v4
