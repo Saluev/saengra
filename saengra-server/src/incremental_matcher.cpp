@@ -92,6 +92,8 @@ void IncrementalMatcher::clear_deps_for_sps(const std::unordered_set<Position>& 
                 dep_it->second.erase(sp);
             }
         }
+
+        position_to_deps_.erase(deps_it);
     }
 }
 
