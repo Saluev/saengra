@@ -106,7 +106,7 @@ jobs:
 
             set +e
             perf record -g --call-graph dwarf -o "$RESULTS/perf.data" -- \
-              python -m pytest "$WORKDIR/vic/tests/vic/profiling" -v -s 2>&1 | tail -20
+              python -m pytest "$WORKDIR/vic/tests/vic/profiling" -v -s
             set -e
             
             perf report -n --show-total-period --stdio --sort=sym -g none -i "$RESULTS/perf.data" > "$RESULTS/benchmarks-report.txt" 2>/dev/null

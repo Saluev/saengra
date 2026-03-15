@@ -1,4 +1,6 @@
 #include <algorithm>
+#include <chrono>
+#include <map>
 #include <unordered_set>
 #include "debug.h"
 #include "logging.h"
@@ -179,6 +181,29 @@ SubgraphChanges IncrementalMatcher::find_subgraph_changes(
 }
 
 IncrementalUpdate IncrementalMatcher::match_incrementally(const Observations& os) {
+    auto t0 = std::chrono::steady_clock::now();
+
+    struct Stats {
+        uint64_t calls = 0;
+        double total_ms = 0.0;
+    };
+    struct StatsDumper {
+        std::map<std::string, Stats>& stats;
+        ~StatsDumper() {
+            std::vector<std::pair<double, std::string>> sorted;
+            for (const auto& [key, s] : stats) {
+                sorted.emplace_back(s.total_ms, key);
+            }
+            std::sort(sorted.rbegin(), sorted.rend());
+            spdlog::info("=== IncrementalMatcher timing by query ===");
+            for (const auto& [total_ms, key] : sorted) {
+                spdlog::info("  {:10.1f} ms  ({} calls)  {}", total_ms, stats[key].calls, key);
+            }
+        }
+    };
+    static std::map<std::string, Stats> stats;
+    static StatsDumper dumper{stats};
+
     auto start_positions = iter_start_positions_needing_rematch(os);
 
     std::vector<Position> sp_vec(start_positions.begin(), start_positions.end());
@@ -230,13 +255,20 @@ IncrementalUpdate IncrementalMatcher::match_incrementally(const Observations& os
         }
     }
 
-    return {
+    auto result = IncrementalUpdate{
         added_deps,
         removed_deps,
         std::move(changes.added_subgraphs),
         std::move(changes.changed_subgraphs),
         std::move(changes.removed_subgraphs)
     };
+
+    double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    auto& s = stats[query_.expression.to_string()];
+    s.calls++;
+    s.total_ms += ms;
+
+    return result;
 }
 
 }
