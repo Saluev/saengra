@@ -188,20 +188,39 @@ IncrementalUpdate IncrementalMatcher::match_incrementally(const Observations& os
     struct Stats {
         uint64_t calls = 0;
         double total_ms = 0.0;
+        std::vector<size_t> last_deps_sizes;
+        std::vector<size_t> curr_deps_sizes;
     };
     struct StatsDumper {
         std::map<std::string, Stats>& stats;
         ~StatsDumper() {
             const char* path = std::getenv("SAENGRA_INCREMENTAL_MATCHER_TIMING");
             if (!path) return;
+
+            auto quantile = [](std::vector<size_t> v, double q) -> size_t {
+                if (v.empty()) return 0;
+                std::sort(v.begin(), v.end());
+                size_t idx = static_cast<size_t>(q * (v.size() - 1));
+                return v[idx];
+            };
+
             std::vector<std::pair<double, std::string>> sorted;
             for (const auto& [key, s] : stats) {
                 sorted.emplace_back(s.total_ms, key);
             }
             std::sort(sorted.rbegin(), sorted.rend());
             std::ofstream f(path);
+            f << "total_ms\tcalls\tlast_deps p50\tlast_deps p95\tlast_deps max\tcurr_deps p50\tcurr_deps p95\tcurr_deps max\tquery\n";
             for (const auto& [total_ms, key] : sorted) {
-                f << total_ms << " ms\t" << stats[key].calls << " calls\t" << key << "\n";
+                const Stats& s = stats[key];
+                f << total_ms << "\t" << s.calls
+                  << "\t" << quantile(s.last_deps_sizes, 0.50)
+                  << "\t" << quantile(s.last_deps_sizes, 0.95)
+                  << "\t" << quantile(s.last_deps_sizes, 1.00)
+                  << "\t" << quantile(s.curr_deps_sizes, 0.50)
+                  << "\t" << quantile(s.curr_deps_sizes, 0.95)
+                  << "\t" << quantile(s.curr_deps_sizes, 1.00)
+                  << "\t" << key << "\n";
             }
         }
     };
@@ -271,6 +290,8 @@ IncrementalUpdate IncrementalMatcher::match_incrementally(const Observations& os
     auto& s = stats[query_.expression.to_string()];
     s.calls++;
     s.total_ms += ms;
+    s.last_deps_sizes.push_back(last_deps_set.size());
+    s.curr_deps_sizes.push_back(curr_deps_set.size());
 
     return result;
 }
