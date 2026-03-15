@@ -1,5 +1,7 @@
 #include <algorithm>
 #include <chrono>
+#include <cstdlib>
+#include <fstream>
 #include <map>
 #include <unordered_set>
 #include "debug.h"
@@ -190,14 +192,16 @@ IncrementalUpdate IncrementalMatcher::match_incrementally(const Observations& os
     struct StatsDumper {
         std::map<std::string, Stats>& stats;
         ~StatsDumper() {
+            const char* path = std::getenv("SAENGRA_INCREMENTAL_MATCHER_TIMING");
+            if (!path) return;
             std::vector<std::pair<double, std::string>> sorted;
             for (const auto& [key, s] : stats) {
                 sorted.emplace_back(s.total_ms, key);
             }
             std::sort(sorted.rbegin(), sorted.rend());
-            spdlog::info("=== IncrementalMatcher timing by query ===");
+            std::ofstream f(path);
             for (const auto& [total_ms, key] : sorted) {
-                spdlog::info("  {:10.1f} ms  ({} calls)  {}", total_ms, stats[key].calls, key);
+                f << total_ms << " ms\t" << stats[key].calls << " calls\t" << key << "\n";
             }
         }
     };

@@ -105,7 +105,8 @@ jobs:
             source "$WORKDIR/venv/bin/activate"
 
             set +e
-            perf record -g --call-graph dwarf -o "$RESULTS/perf.data" -- \
+            SAENGRA_INCREMENTAL_MATCHER_TIMING="$RESULTS/incremental-matcher-timing.txt" \
+              perf record -g --call-graph dwarf -o "$RESULTS/perf.data" -- \
               python -m pytest "$WORKDIR/vic/tests/vic/profiling" -v -s
             set -e
             
@@ -123,6 +124,7 @@ jobs:
           SCP="scp -o StrictHostKeyChecking=no"
           $SCP "${USER}@${HOST}:~/results/actions-report.txt" results/
           $SCP "${USER}@${HOST}:~/results/benchmarks-report.txt" results/
+          $SCP "${USER}@${HOST}:~/results/incremental-matcher-timing.txt" results/ || true
 
       - uses: actions/upload-artifact@v4
         with:
@@ -133,3 +135,9 @@ jobs:
         with:
           name: benchmarks-report
           path: results/benchmarks-report.txt
+
+      - uses: actions/upload-artifact@v4
+        if: hashFiles('results/incremental-matcher-timing.txt') != ''
+        with:
+          name: incremental-matcher-timing
+          path: results/incremental-matcher-timing.txt
