@@ -188,6 +188,7 @@ IncrementalUpdate IncrementalMatcher::match_incrementally(const Observations& os
     struct Stats {
         uint64_t calls = 0;
         double total_ms = 0.0;
+        std::vector<size_t> start_positions_sizes;
         std::vector<size_t> last_deps_sizes;
         std::vector<size_t> curr_deps_sizes;
     };
@@ -210,10 +211,13 @@ IncrementalUpdate IncrementalMatcher::match_incrementally(const Observations& os
             }
             std::sort(sorted.rbegin(), sorted.rend());
             std::ofstream f(path);
-            f << "total_ms\tcalls\tlast_deps p50\tlast_deps p95\tlast_deps max\tcurr_deps p50\tcurr_deps p95\tcurr_deps max\tquery\n";
+            f << "total_ms\tcalls\tstart_pos p50\tstart_pos p95\tstart_pos max\tlast_deps p50\tlast_deps p95\tlast_deps max\tcurr_deps p50\tcurr_deps p95\tcurr_deps max\tquery\n";
             for (const auto& [total_ms, key] : sorted) {
                 const Stats& s = stats[key];
                 f << total_ms << "\t" << s.calls
+                  << "\t" << quantile(s.start_positions_sizes, 0.50)
+                  << "\t" << quantile(s.start_positions_sizes, 0.95)
+                  << "\t" << quantile(s.start_positions_sizes, 1.00)
                   << "\t" << quantile(s.last_deps_sizes, 0.50)
                   << "\t" << quantile(s.last_deps_sizes, 0.95)
                   << "\t" << quantile(s.last_deps_sizes, 1.00)
@@ -290,6 +294,7 @@ IncrementalUpdate IncrementalMatcher::match_incrementally(const Observations& os
     auto& s = stats[query_.expression.to_string()];
     s.calls++;
     s.total_ms += ms;
+    s.start_positions_sizes.push_back(start_positions.size());
     s.last_deps_sizes.push_back(last_deps_set.size());
     s.curr_deps_sizes.push_back(curr_deps_set.size());
 
