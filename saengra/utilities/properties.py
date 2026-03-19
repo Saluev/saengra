@@ -145,13 +145,18 @@ class RelatedOptionalEntityProperty(RelatedEntityPropertyBase):
         return getattr(instance, self._cache_attr_name, None)
 
     def __set__(self, instance: "Entity", value: Any) -> None:
-        check_alive(self._label, value)
         # Update graph
         from_, label = instance.primitive, self._label
         instance._env.update(RemoveEdgesToAll(from_, label))
         if value is not None:
-            to = value.primitive if is_entity(value) else value
-            instance._env.update(AddVertex(to), AddEdge(from_, label, to))
+            if is_entity(value):
+                if not value.alive:
+                    raise RuntimeError(
+                        f"trying to assign `.{self._label}` to {value} that is not alive"
+                    )
+                instance._env.update(AddEdge(from_, label, value.primitive))
+            else:
+                instance._env.update(AddVertex(value), AddEdge(from_, label, value))
         # Update entities
         self.add_to_cache(instance, value)
 
@@ -205,13 +210,17 @@ class RelatedEntityProperty(RelatedEntityPropertyBase):
             ) from exc
 
     def __set__(self, instance: "Entity", value: Any) -> None:
-        check_alive(self._label, value)
         # Update graph
         from_, label = instance.primitive, self._label
-        to = value.primitive if is_entity(value) else value
-        instance._env.update(
-            RemoveEdgesToAll(from_, label), AddVertex(to), AddEdge(from_, label, to)
-        )
+        instance._env.update(RemoveEdgesToAll(from_, label))
+        if is_entity(value):
+            if not value.alive:
+                raise RuntimeError(
+                    f"trying to assign `.{self._label}` to {value} that is not alive"
+                )
+            instance._env.update(AddEdge(from_, label, value.primitive))
+        else:
+            instance._env.update(AddVertex(value), AddEdge(from_, label, value))
         # Update entities
         self.add_to_cache(instance, value)
 

@@ -28,6 +28,9 @@ class EnvProtocol(Protocol):
     def update(self, *updates: Update) -> None:
         pass
 
+    def update_many(self, updates: list[Update]) -> None:
+        pass
+
 
 @dataclass_transform(eq_default=True, order_default=True, frozen_default=True)
 def primitive(cls: Type) -> Type:

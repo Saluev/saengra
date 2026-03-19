@@ -77,10 +77,18 @@ class RelatedEntitiesContainer:
         self._add_inverse_one(item)
 
     def _add_many(self, items: list["Primitive | Entity"]) -> None:
-        tos = [item.primitive if is_entity(item) else item for item in items]
-        add_vertex_updates = [AddVertex(to) for to in tos]
-        add_edge_updates = [AddEdge(self._from, self._label, to) for to in tos]
-        self._env.update(*add_vertex_updates, *add_edge_updates)
+        updates: list[AddVertex | AddEdge] = []
+        for item in items:
+            if is_entity(item):
+                if not item.alive:
+                    raise RuntimeError(
+                        f"trying to assign `.{self._label}` to [..., {item}, ...] that is not alive"
+                    )
+                updates.append(AddEdge(self._from, self._label, item.primitive))
+            else:
+                updates.append(AddVertex(item))
+                updates.append(AddEdge(self._from, self._label, item))
+        self._env.update_many(updates)
         self._cached_values.update(items)
         self._add_inverse_many(items)
 

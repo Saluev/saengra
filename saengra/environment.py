@@ -89,6 +89,9 @@ class Environment(EnvProtocol):
         """
         self._adapter.update(updates)
 
+    def update_many(self, updates: list[Update]) -> None:
+        self._adapter.update(updates)
+
     def commit(self) -> None:
         if self._currently_committing:
             raise RuntimeError("should not invoke .commit() in pre-commit hooks")
