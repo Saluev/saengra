@@ -135,6 +135,13 @@ class RelatedEntityPropertyBase(EntityProperty):
     def compose_slots(self) -> list[str]:
         return [self._cache_attr_name]
 
+    def add_to_cache(self, e: "Entity", what: Any) -> None:
+        if is_entity(prev := _object_getattribute(e, self._cache_attr_name)):
+            prev._inverse.remove((e, self._label))
+        _object_setattr(e, self._cache_attr_name, what)
+        if is_entity(what):
+            what._inverse.add((e, self._label))
+
 
 class RelatedOptionalEntityProperty(RelatedEntityPropertyBase):
     __slots__ = RelatedEntityPropertyBase.__slots__
@@ -142,7 +149,7 @@ class RelatedOptionalEntityProperty(RelatedEntityPropertyBase):
     def __get__(self, instance: "Entity | None", owner):
         if instance is None:
             return self
-        return getattr(instance, self._cache_attr_name, None)
+        return _object_getattribute(instance, self._cache_attr_name)
 
     def __set__(self, instance: "Entity", value: Any) -> None:
         # Update graph
@@ -164,7 +171,7 @@ class RelatedOptionalEntityProperty(RelatedEntityPropertyBase):
         raise AttributeError(self._label)
 
     def compose_init_code(self) -> tuple[list[str], dict[str, Any]]:
-        return [], {}
+        return [f"self.{self._cache_attr_name} = None"], {}
 
     def reset_cache(
         self, env: "EnvProtocol", e: "Entity", primitive: Primitive
@@ -173,13 +180,6 @@ class RelatedOptionalEntityProperty(RelatedEntityPropertyBase):
 
     def clear_cache(self, e: "Entity") -> None:
         _object_setattr(e, self._cache_attr_name, None)
-
-    def add_to_cache(self, e: "Entity", what: Any) -> None:
-        if is_entity(prev := getattr(e, self._cache_attr_name, None)):
-            prev._inverse.remove((e, self._label))
-        _object_setattr(e, self._cache_attr_name, what)
-        if is_entity(what):
-            what._inverse.add((e, self._label))
 
     def remove_from_cache(self, e: "Entity", what: "Entity") -> None:
         _object_setattr(e, self._cache_attr_name, None)
@@ -238,13 +238,6 @@ class RelatedEntityProperty(RelatedEntityPropertyBase):
 
     def clear_cache(self, e: "Entity") -> None:
         _object_delattr(e, self._cache_attr_name)
-
-    def add_to_cache(self, e: "Entity", what: Any) -> None:
-        if is_entity(prev := getattr(e, self._cache_attr_name, None)):
-            prev._inverse.remove((e, self._label))
-        _object_setattr(e, self._cache_attr_name, what)
-        if is_entity(what):
-            what._inverse.add((e, self._label))
 
     def remove_from_cache(self, e: "Entity", what: "Entity") -> None:
         _object_delattr(e, self._cache_attr_name)
