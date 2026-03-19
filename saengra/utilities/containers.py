@@ -1,3 +1,4 @@
+from itertools import chain
 from typing import TYPE_CHECKING, Any, Iterable, Iterator
 
 from saengra.utilities.typing import is_entity
@@ -76,7 +77,9 @@ class RelatedEntitiesContainer:
         self._cached_values.add(item)
         self._add_inverse_one(item)
 
-    def _add_many(self, items: list["Primitive | Entity"]) -> None:
+    def _add_many(
+        self, items: list["Primitive | Entity"] | set["Primitive | Entity"]
+    ) -> None:
         updates: list[AddVertex | AddEdge] = []
         for item in items:
             if is_entity(item):
@@ -98,7 +101,9 @@ class RelatedEntitiesContainer:
         self._cached_values.discard(item)
         self._remove_inverse([item])
 
-    def _discard_many(self, items: list["Primitive | Entity"]) -> None:
+    def _discard_many(
+        self, items: list["Primitive | Entity"] | set["Primitive | Entity"]
+    ) -> None:
         remove_edge_updates: list[Update] = [
             RemoveEdge(
                 self._from, self._label, item.primitive if is_entity(item) else item
@@ -141,11 +146,35 @@ class RelatedEntitiesSet(RelatedEntitiesContainer):
         self._clear()
 
     def update(self, *s: Iterable["Primitive | Entity"]) -> None:
-        items = [item for iterable in s for item in iterable]
+        if len(s) == 1:
+            # Shorter path for a frequent use.
+            items = s[0]
+            if items is self:
+                # This is a necessary check. We might hurt ourselves if
+                # performed _add_many() with self as an argument,
+                # which is going to change during the function execution.
+                return
+            if type(items) not in (list, set, RelatedEntitiesSet):
+                items = list(items)
+            self._add_many(items)
+            return
+
+        items = list(chain.from_iterable(s))
         self._add_many(items)
 
     def difference_update(self, *s: Iterable["Primitive | Entity"]) -> None:
-        items = [item for iterable in s for item in iterable]
+        if len(s) == 1:
+            # Shorter path for a frequent use.
+            items = s[0]
+            if items is self:
+                self._clear()
+                return
+            if type(items) not in (list, set, RelatedEntitiesSet):
+                items = list(items)
+            self._add_many(items)
+            return
+
+        items = list(chain.from_iterable(s))
         self._discard_many(items)
 
     def __eq__(self, other: Any) -> bool:
