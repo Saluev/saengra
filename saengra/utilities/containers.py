@@ -99,11 +99,13 @@ class RelatedEntitiesContainer:
         self._remove_inverse([item])
 
     def _discard_many(self, items: list["Primitive | Entity"]) -> None:
-        tos = [item.primitive if is_entity(item) else item for item in items]
         remove_edge_updates: list[Update] = [
-            RemoveEdge(self._from, self._label, to) for to in tos
+            RemoveEdge(
+                self._from, self._label, item.primitive if is_entity(item) else item
+            )
+            for item in items
         ]
-        self._env.update(*remove_edge_updates)
+        self._env.update_many(remove_edge_updates)
         self._cached_values.difference_update(items)
         self._remove_inverse(items)
 
