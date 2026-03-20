@@ -13,7 +13,7 @@ from saengra.graph import (
     Primitive,
     RemoveEdge,
     RemoveEdgesToAll,
-    Update,
+    Update, AddVertices, AddEdges,
 )
 
 
@@ -80,18 +80,27 @@ class RelatedEntitiesContainer:
     def _add_many(
         self, items: list["Primitive | Entity"] | set["Primitive | Entity"]
     ) -> None:
-        updates: list[AddVertex | AddEdge] = []
+        entity_primitives: list[Primitive] = []
+        other_primitives: list[Primitive] = []
         for item in items:
             if is_entity(item):
                 if not item.alive:
                     raise RuntimeError(
                         f"trying to assign `.{self._label}` to [..., {item}, ...] that is not alive"
                     )
-                updates.append(AddEdge(self._from, self._label, item.primitive))
+                entity_primitives.append(item.primitive)
             else:
-                updates.append(AddVertex(item))
-                updates.append(AddEdge(self._from, self._label, item))
-        self._env.update_many(updates)
+                other_primitives.append(item)
+
+        if other_primitives:
+            self._env.update(
+                AddVertices(other_primitives),
+                AddEdges(self._from, self._label, entity_primitives + other_primitives if entity_primitives else other_primitives),
+            )
+        elif entity_primitives:
+            self._env.update(AddEdges(self._from, self._label, entity_primitives))
+        else:
+            return
         self._cached_values.update(items)
         self._add_inverse_many(items)
 
