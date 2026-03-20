@@ -138,6 +138,7 @@ typedef struct {
     std::vector<saengra::NativeUpdate>* pending_updates;
     // Cached type pointers for fast dispatch in convert_one_update
     PyTypeObject* AddEdge_type;
+    PyTypeObject* AddEdges_type;
     PyTypeObject* RemoveEdgesToAll_type;
     PyTypeObject* AddVertex_type;
     PyTypeObject* AddVertices_type;
@@ -147,6 +148,9 @@ typedef struct {
     Py_ssize_t off_AddEdge_from;
     Py_ssize_t off_AddEdge_label;
     Py_ssize_t off_AddEdge_to;
+    Py_ssize_t off_AddEdges_from;
+    Py_ssize_t off_AddEdges_label;
+    Py_ssize_t off_AddEdges_tos;
     Py_ssize_t off_RemoveEdgesToAll_from;
     Py_ssize_t off_RemoveEdgesToAll_label;
     Py_ssize_t off_AddVertex_primitive;
@@ -200,6 +204,7 @@ static void DirectAdapter_dealloc(DirectAdapterObject* self) {
     delete self->graph;
     delete self->pickle_cache;
     Py_XDECREF(self->AddEdge_type);
+    Py_XDECREF(self->AddEdges_type);
     Py_XDECREF(self->RemoveEdgesToAll_type);
     Py_XDECREF(self->AddVertex_type);
     Py_XDECREF(self->AddVertices_type);
@@ -225,6 +230,7 @@ static int DirectAdapter_init(DirectAdapterObject* self, PyObject* args, PyObjec
     if (!graph_module) return -1;
 
     self->AddEdge_type = (PyTypeObject*)PyObject_GetAttrString(graph_module, "AddEdge");
+    self->AddEdges_type = (PyTypeObject*)PyObject_GetAttrString(graph_module, "AddEdges");
     self->RemoveEdgesToAll_type = (PyTypeObject*)PyObject_GetAttrString(graph_module, "RemoveEdgesToAll");
     self->AddVertex_type = (PyTypeObject*)PyObject_GetAttrString(graph_module, "AddVertex");
     self->AddVertices_type = (PyTypeObject*)PyObject_GetAttrString(graph_module, "AddVertices");
@@ -232,8 +238,9 @@ static int DirectAdapter_init(DirectAdapterObject* self, PyObject* args, PyObjec
     self->RemoveEdge_type = (PyTypeObject*)PyObject_GetAttrString(graph_module, "RemoveEdge");
     Py_DECREF(graph_module);
 
-    if (!self->AddEdge_type || !self->RemoveEdgesToAll_type || !self->AddVertex_type ||
-        !self->AddVertices_type || !self->RemoveVertex_type || !self->RemoveEdge_type) {
+    if (!self->AddEdge_type || !self->AddEdges_type || !self->RemoveEdgesToAll_type ||
+        !self->AddVertex_type || !self->AddVertices_type ||
+        !self->RemoveVertex_type || !self->RemoveEdge_type) {
         return -1;
     }
 
@@ -241,6 +248,9 @@ static int DirectAdapter_init(DirectAdapterObject* self, PyObject* args, PyObjec
     self->off_AddEdge_from = find_member_offset(self->AddEdge_type, "from_");
     self->off_AddEdge_label = find_member_offset(self->AddEdge_type, "label");
     self->off_AddEdge_to = find_member_offset(self->AddEdge_type, "to");
+    self->off_AddEdges_from = find_member_offset(self->AddEdges_type, "from_");
+    self->off_AddEdges_label = find_member_offset(self->AddEdges_type, "label");
+    self->off_AddEdges_tos = find_member_offset(self->AddEdges_type, "tos");
     self->off_RemoveEdgesToAll_from = find_member_offset(self->RemoveEdgesToAll_type, "from_");
     self->off_RemoveEdgesToAll_label = find_member_offset(self->RemoveEdgesToAll_type, "label");
     self->off_AddVertex_primitive = find_member_offset(self->AddVertex_type, "primitive");
@@ -274,6 +284,34 @@ static bool convert_one_update(DirectAdapterObject* self, PyObject* update) {
         if (!primitive_to_vertex_data(self, from_obj, native_update.from.type_name, native_update.from.value) ||
             !primitive_to_vertex_data(self, to_obj, native_update.to.type_name, native_update.to.value)) {
             return false;
+        }
+
+    } else if (update_type == self->AddEdges_type) {
+        native_update.kind = saengra::NativeUpdateKind::AddEdges;
+
+        PyObject* from_obj = slot_get(update, self->off_AddEdges_from);
+        PyObject* label_obj = slot_get(update, self->off_AddEdges_label);
+        PyObject* tos_obj = slot_get(update, self->off_AddEdges_tos);
+
+        const char* label = PyUnicode_AsUTF8(label_obj);
+        if (!label) return false;
+        native_update.label = label;
+
+        if (!primitive_to_vertex_data(self, from_obj, native_update.from.type_name, native_update.from.value)) {
+            return false;
+        }
+
+        Py_ssize_t n = PySequence_Length(tos_obj);
+        if (n < 0) return false;
+        native_update.tos.reserve(n);
+        for (Py_ssize_t i = 0; i < n; i++) {
+            PyObject* to = PySequence_GetItem(tos_obj, i);
+            if (!to) return false;
+            saengra::NativeUpdateVertex v;
+            bool ok = primitive_to_vertex_data(self, to, v.type_name, v.value);
+            Py_DECREF(to);
+            if (!ok) return false;
+            native_update.tos.push_back(std::move(v));
         }
 
     } else if (update_type == self->RemoveEdgesToAll_type) {
