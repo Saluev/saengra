@@ -18,6 +18,7 @@ namespace ProtoUpdateKind {
     const auto RemoveVertex = ::saengra_api::ApplyUpdates_Update_UpdateKind::ApplyUpdates_Update_UpdateKind_REMOVE_VERTEX;
     const auto RemoveEdge = ::saengra_api::ApplyUpdates_Update_UpdateKind::ApplyUpdates_Update_UpdateKind_REMOVE_EDGE;
     const auto RemoveEdgesToAll = ::saengra_api::ApplyUpdates_Update_UpdateKind::ApplyUpdates_Update_UpdateKind_REMOVE_EDGES_TO_ALL;
+    const auto AddVertices = ::saengra_api::ApplyUpdates_Update_UpdateKind::ApplyUpdates_Update_UpdateKind_ADD_VERTICES;
 };
 
 using ProtoUpdates = ::google::protobuf::RepeatedPtrField<::saengra_api::ApplyUpdates_Update>;
@@ -27,7 +28,8 @@ enum class NativeUpdateKind {
     AddEdge,
     RemoveVertex,
     RemoveEdge,
-    RemoveEdgesToAll
+    RemoveEdgesToAll,
+    AddVertices
 };
 
 struct NativeUpdateVertex {
@@ -40,6 +42,7 @@ struct NativeUpdate {
     NativeUpdateVertex from;
     std::string label;
     NativeUpdateVertex to;
+    std::vector<NativeUpdateVertex> vertices;  // used by AddVertices
 };
 
 using NativeUpdates = std::vector<NativeUpdate>;
@@ -103,6 +106,9 @@ private:
 
     template<typename Accessor, typename UpdateT>
     void add_vertex_impl(const UpdateT& update, ApplyUpdatesContext& context);
+
+    template<typename Accessor, typename UpdateT>
+    void add_vertices_impl(const UpdateT& update, ApplyUpdatesContext& context);
 
     template<typename Accessor, typename UpdateT>
     void add_edge_impl(const UpdateT& update, ApplyUpdatesContext& context);

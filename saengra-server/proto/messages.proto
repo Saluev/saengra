@@ -59,6 +59,7 @@ message ApplyUpdates {
     Vertex from = 2;
     optional string label = 3;
     optional Vertex to = 4;
+    repeated Vertex vertices = 5;
 
     enum UpdateKind {
       ADD_VERTEX = 0;
@@ -66,6 +67,7 @@ message ApplyUpdates {
       REMOVE_VERTEX = 2;
       REMOVE_EDGE = 3;
       REMOVE_EDGES_TO_ALL = 4;
+      ADD_VERTICES = 5;
     }
   }
 }

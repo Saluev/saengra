@@ -140,6 +140,7 @@ typedef struct {
     PyTypeObject* AddEdge_type;
     PyTypeObject* RemoveEdgesToAll_type;
     PyTypeObject* AddVertex_type;
+    PyTypeObject* AddVertices_type;
     PyTypeObject* RemoveVertex_type;
     PyTypeObject* RemoveEdge_type;
     // Slot offsets for direct memory access (avoids PyObject_GetAttr entirely)
@@ -149,6 +150,7 @@ typedef struct {
     Py_ssize_t off_RemoveEdgesToAll_from;
     Py_ssize_t off_RemoveEdgesToAll_label;
     Py_ssize_t off_AddVertex_primitive;
+    Py_ssize_t off_AddVertices_primitives;
     Py_ssize_t off_RemoveVertex_primitive;
     Py_ssize_t off_RemoveEdge_from;
     Py_ssize_t off_RemoveEdge_label;
@@ -200,6 +202,7 @@ static void DirectAdapter_dealloc(DirectAdapterObject* self) {
     Py_XDECREF(self->AddEdge_type);
     Py_XDECREF(self->RemoveEdgesToAll_type);
     Py_XDECREF(self->AddVertex_type);
+    Py_XDECREF(self->AddVertices_type);
     Py_XDECREF(self->RemoveVertex_type);
     Py_XDECREF(self->RemoveEdge_type);
     Py_TYPE(self)->tp_free((PyObject*)self);
@@ -224,12 +227,13 @@ static int DirectAdapter_init(DirectAdapterObject* self, PyObject* args, PyObjec
     self->AddEdge_type = (PyTypeObject*)PyObject_GetAttrString(graph_module, "AddEdge");
     self->RemoveEdgesToAll_type = (PyTypeObject*)PyObject_GetAttrString(graph_module, "RemoveEdgesToAll");
     self->AddVertex_type = (PyTypeObject*)PyObject_GetAttrString(graph_module, "AddVertex");
+    self->AddVertices_type = (PyTypeObject*)PyObject_GetAttrString(graph_module, "AddVertices");
     self->RemoveVertex_type = (PyTypeObject*)PyObject_GetAttrString(graph_module, "RemoveVertex");
     self->RemoveEdge_type = (PyTypeObject*)PyObject_GetAttrString(graph_module, "RemoveEdge");
     Py_DECREF(graph_module);
 
     if (!self->AddEdge_type || !self->RemoveEdgesToAll_type || !self->AddVertex_type ||
-        !self->RemoveVertex_type || !self->RemoveEdge_type) {
+        !self->AddVertices_type || !self->RemoveVertex_type || !self->RemoveEdge_type) {
         return -1;
     }
 
@@ -240,6 +244,7 @@ static int DirectAdapter_init(DirectAdapterObject* self, PyObject* args, PyObjec
     self->off_RemoveEdgesToAll_from = find_member_offset(self->RemoveEdgesToAll_type, "from_");
     self->off_RemoveEdgesToAll_label = find_member_offset(self->RemoveEdgesToAll_type, "label");
     self->off_AddVertex_primitive = find_member_offset(self->AddVertex_type, "primitive");
+    self->off_AddVertices_primitives = find_member_offset(self->AddVertices_type, "primitives");
     self->off_RemoveVertex_primitive = find_member_offset(self->RemoveVertex_type, "primitive");
     self->off_RemoveEdge_from = find_member_offset(self->RemoveEdge_type, "from_");
     self->off_RemoveEdge_label = find_member_offset(self->RemoveEdge_type, "label");
@@ -291,6 +296,23 @@ static bool convert_one_update(DirectAdapterObject* self, PyObject* update) {
         PyObject* primitive = slot_get(update, self->off_AddVertex_primitive);
         if (!primitive_to_vertex_data(self, primitive, native_update.from.type_name, native_update.from.value)) {
             return false;
+        }
+
+    } else if (update_type == self->AddVertices_type) {
+        native_update.kind = saengra::NativeUpdateKind::AddVertices;
+
+        PyObject* primitives_obj = slot_get(update, self->off_AddVertices_primitives);
+        Py_ssize_t n = PySequence_Length(primitives_obj);
+        if (n < 0) return false;
+        native_update.vertices.reserve(n);
+        for (Py_ssize_t i = 0; i < n; i++) {
+            PyObject* prim = PySequence_GetItem(primitives_obj, i);
+            if (!prim) return false;
+            saengra::NativeUpdateVertex v;
+            bool ok = primitive_to_vertex_data(self, prim, v.type_name, v.value);
+            Py_DECREF(prim);
+            if (!ok) return false;
+            native_update.vertices.push_back(std::move(v));
         }
 
     } else if (update_type == self->RemoveVertex_type) {

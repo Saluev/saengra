@@ -3,6 +3,7 @@ import pytest
 from saengra import Environment
 from saengra.graph import (
     AddVertex,
+    AddVertices,
     AddEdge,
     Edge,
     RemoveVertex,
@@ -32,6 +33,26 @@ def test_add_vertex(empty_env: Environment) -> None:
 
     empty_env.commit()
     assert empty_env.find_all_of_type(str) == {"foo"}
+
+
+def test_add_vertices(empty_env: Environment) -> None:
+    empty_env.update(AddVertices(primitives=("foo", "bar", "baz")))
+    assert empty_env.find_all_of_type(str) == {"foo", "bar", "baz"}
+
+    empty_env.commit()
+    assert empty_env.find_all_of_type(str) == {"foo", "bar", "baz"}
+
+
+def test_add_vertices_deduplication(empty_env: Environment) -> None:
+    empty_env.update(AddVertices(primitives=("foo", "foo", "bar")))
+    vertices, _ = empty_env.find_all()
+    assert {*vertices} == {"foo", "bar"}
+
+
+def test_add_vertices_empty(empty_env: Environment) -> None:
+    empty_env.update(AddVertices(primitives=()))
+    vertices, _ = empty_env.find_all()
+    assert not vertices
 
 
 def test_add_vertex_deduplication(empty_env: Environment) -> None:

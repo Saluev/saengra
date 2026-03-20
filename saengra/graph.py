@@ -43,6 +43,11 @@ class AddVertex:
 
 
 @dataclass(frozen=True, slots=True)
+class AddVertices:
+    primitives: tuple[Primitive, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class AddEdge:
     from_: Primitive
     label: Label
@@ -67,7 +72,7 @@ class RemoveEdgesToAll:
     label: Label
 
 
-Update = AddVertex | AddEdge | RemoveVertex | RemoveEdge | RemoveEdgesToAll
+Update = AddVertex | AddVertices | AddEdge | RemoveVertex | RemoveEdge | RemoveEdgesToAll
 
 
 @dataclass(frozen=True, slots=True)
