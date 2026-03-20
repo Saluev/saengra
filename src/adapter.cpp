@@ -286,6 +286,28 @@ static bool convert_one_update(DirectAdapterObject* self, PyObject* update) {
             return false;
         }
 
+    } else if (update_type == self->RemoveEdgesToAll_type) {
+        native_update.kind = saengra::NativeUpdateKind::RemoveEdgesToAll;
+
+        PyObject* from_obj = slot_get(update, self->off_RemoveEdgesToAll_from);
+        PyObject* label_obj = slot_get(update, self->off_RemoveEdgesToAll_label);
+
+        const char* label = PyUnicode_AsUTF8(label_obj);
+        if (!label) return false;
+        native_update.label = label;
+
+        if (!primitive_to_vertex_data(self, from_obj, native_update.from.type_name, native_update.from.value)) {
+            return false;
+        }
+
+    } else if (update_type == self->AddVertex_type) {
+        native_update.kind = saengra::NativeUpdateKind::AddVertex;
+
+        PyObject* primitive = slot_get(update, self->off_AddVertex_primitive);
+        if (!primitive_to_vertex_data(self, primitive, native_update.from.type_name, native_update.from.value)) {
+            return false;
+        }
+
     } else if (update_type == self->AddEdges_type) {
         native_update.kind = saengra::NativeUpdateKind::AddEdges;
 
@@ -314,45 +336,6 @@ static bool convert_one_update(DirectAdapterObject* self, PyObject* update) {
             native_update.tos.push_back(std::move(v));
         }
 
-    } else if (update_type == self->RemoveEdgesToAll_type) {
-        native_update.kind = saengra::NativeUpdateKind::RemoveEdgesToAll;
-
-        PyObject* from_obj = slot_get(update, self->off_RemoveEdgesToAll_from);
-        PyObject* label_obj = slot_get(update, self->off_RemoveEdgesToAll_label);
-
-        const char* label = PyUnicode_AsUTF8(label_obj);
-        if (!label) return false;
-        native_update.label = label;
-
-        if (!primitive_to_vertex_data(self, from_obj, native_update.from.type_name, native_update.from.value)) {
-            return false;
-        }
-
-    } else if (update_type == self->AddVertex_type) {
-        native_update.kind = saengra::NativeUpdateKind::AddVertex;
-
-        PyObject* primitive = slot_get(update, self->off_AddVertex_primitive);
-        if (!primitive_to_vertex_data(self, primitive, native_update.from.type_name, native_update.from.value)) {
-            return false;
-        }
-
-    } else if (update_type == self->AddVertices_type) {
-        native_update.kind = saengra::NativeUpdateKind::AddVertices;
-
-        PyObject* primitives_obj = slot_get(update, self->off_AddVertices_primitives);
-        Py_ssize_t n = PySequence_Length(primitives_obj);
-        if (n < 0) return false;
-        native_update.vertices.reserve(n);
-        for (Py_ssize_t i = 0; i < n; i++) {
-            PyObject* prim = PySequence_GetItem(primitives_obj, i);
-            if (!prim) return false;
-            saengra::NativeUpdateVertex v;
-            bool ok = primitive_to_vertex_data(self, prim, v.type_name, v.value);
-            Py_DECREF(prim);
-            if (!ok) return false;
-            native_update.vertices.push_back(std::move(v));
-        }
-
     } else if (update_type == self->RemoveVertex_type) {
         native_update.kind = saengra::NativeUpdateKind::RemoveVertex;
 
@@ -375,6 +358,23 @@ static bool convert_one_update(DirectAdapterObject* self, PyObject* update) {
         if (!primitive_to_vertex_data(self, from_obj, native_update.from.type_name, native_update.from.value) ||
             !primitive_to_vertex_data(self, to_obj, native_update.to.type_name, native_update.to.value)) {
             return false;
+        }
+
+    } else if (update_type == self->AddVertices_type) {
+        native_update.kind = saengra::NativeUpdateKind::AddVertices;
+
+        PyObject* primitives_obj = slot_get(update, self->off_AddVertices_primitives);
+        Py_ssize_t n = PySequence_Length(primitives_obj);
+        if (n < 0) return false;
+        native_update.vertices.reserve(n);
+        for (Py_ssize_t i = 0; i < n; i++) {
+            PyObject* prim = PySequence_GetItem(primitives_obj, i);
+            if (!prim) return false;
+            saengra::NativeUpdateVertex v;
+            bool ok = primitive_to_vertex_data(self, prim, v.type_name, v.value);
+            Py_DECREF(prim);
+            if (!ok) return false;
+            native_update.vertices.push_back(std::move(v));
         }
 
     } else {
