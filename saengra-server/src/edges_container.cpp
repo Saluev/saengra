@@ -15,63 +15,45 @@ inline void push_edge(std::vector<Edge>& dest, VertexID from, const EdgeLabel& l
 }
 
 void UniLeaf::iter_present(std::vector<VertexID>& dest) const {
-    if (just_added_) {
-        dest.push_back(*just_added_);
-    }
-    if (added_ && added_ != just_removed_) {
-        dest.push_back(*added_);
-    }
-    if (committed_ && !removed_ && committed_ != just_removed_) {
-        dest.push_back(*committed_);
+    if (just_replaced_) {
+        dest.push_back(*just_replaced_);
     }
 }
 
 void UniLeaf::iter_just_added(std::vector<VertexID>& dest) const {
-    if (just_added_) dest.push_back(*just_added_);
+    if (just_replaced_ && just_replaced_ != replaced_) dest.push_back(*just_replaced_);
 }
 
 void UniLeaf::iter_just_removed(std::vector<VertexID>& dest) const {
-    if (just_removed_) dest.push_back(*just_removed_);
+    if (replaced_ && just_replaced_ != replaced_) dest.push_back(*replaced_);
 }
 
 void UniLeaf::iter_present(std::vector<std::pair<EdgeLabel, VertexID>>& dest) const {
-    if (just_added_) {
-        dest.emplace_back(label_, *just_added_);
-    }
-    if (added_ && added_ != just_removed_) {
-        dest.emplace_back(label_, *added_);
-    }
-    if (committed_ && !removed_ && committed_ != just_removed_) {
-        dest.emplace_back(label_, *committed_);
+    if (just_replaced_) {
+        dest.emplace_back(label_, *just_replaced_);
     }
 }
 
 void UniLeaf::iter_just_added(std::vector<std::pair<EdgeLabel, VertexID>>& dest) const {
-    if (just_added_) dest.emplace_back(label_, *just_added_);
+    if (just_replaced_ && just_replaced_ != replaced_) dest.emplace_back(label_, *just_replaced_);
 }
 
 void UniLeaf::iter_just_removed(std::vector<std::pair<EdgeLabel, VertexID>>& dest) const {
-    if (just_removed_) dest.emplace_back(label_, *just_removed_);
+    if (replaced_ && just_replaced_ != replaced_) dest.emplace_back(label_, *replaced_);
 }
 
 void UniLeaf::iter_present(std::vector<Edge>& dest) const {
-    if (just_added_) {
-        push_edge(dest, from_, label_, *just_added_, is_inverse_);
-    }
-    if (added_ && added_ != just_removed_) {
-        push_edge(dest, from_, label_, *added_, is_inverse_);
-    }
-    if (committed_ && !removed_ && committed_ != just_removed_) {
-        push_edge(dest, from_, label_, *committed_, is_inverse_);
+    if (just_replaced_) {
+        push_edge(dest, from_, label_, *just_replaced_, is_inverse_);
     }
 }
 
 void UniLeaf::iter_just_added(std::vector<Edge>& dest) const {
-    if (just_added_) push_edge(dest, from_, label_, *just_added_, is_inverse_);
+    if (just_replaced_ && just_replaced_ != replaced_) push_edge(dest, from_, label_, *just_replaced_, is_inverse_);
 }
 
 void UniLeaf::iter_just_removed(std::vector<Edge>& dest) const {
-    if (just_removed_) push_edge(dest, from_, label_, *just_removed_, is_inverse_);
+    if (replaced_ && just_replaced_ != replaced_) push_edge(dest, from_, label_, *replaced_, is_inverse_);
 }
 
 void UniLeaf::convert_to_multi_leaf(Leaf& self) {
@@ -90,8 +72,8 @@ void UniLeaf::convert_to_multi_leaf(Leaf& self) {
     };
 
     const size_t committed_idx = committed_ ? add_to_multi_leaf(*committed_) : 0;
-    const size_t added_idx = added_ ? add_to_multi_leaf(*added_) : 0;
-    const size_t just_added_idx = just_added_ ? add_to_multi_leaf(*just_added_) : 0;
+    const size_t replaced_idx = replaced_ ? add_to_multi_leaf(*replaced_) : 0;
+    const size_t just_replaced_idx = just_replaced_ ? add_to_multi_leaf(*just_replaced_) : 0;
 
     multi_leaf.present_.resize(multi_leaf.index_.size());
     multi_leaf.committed_.resize(multi_leaf.index_.size());
@@ -101,144 +83,57 @@ void UniLeaf::convert_to_multi_leaf(Leaf& self) {
     multi_leaf.just_removed_.resize(multi_leaf.index_.size());
 
     if (committed_) {
-        multi_leaf.present_[committed_idx] = true;
         multi_leaf.committed_[committed_idx] = true;
     }
-    if (added_) {
-        multi_leaf.present_[added_idx] = true;
-        multi_leaf.added_[added_idx] = true;
+    if (replaced_ && replaced_ != committed_) {
+        multi_leaf.added_[replaced_idx] = true;
     }
-    if (removed_) {
-        const auto removed_idx = multi_leaf.index_[*removed_];
-        multi_leaf.present_[removed_idx] = false;
-        multi_leaf.removed_[removed_idx] = true;
+    if (committed_ && replaced_ != committed_) {
+        multi_leaf.removed_[committed_idx] = true;
     }
-    if (just_added_) {
-        multi_leaf.present_[just_added_idx] = true;
-        multi_leaf.just_added_[just_added_idx] = true;
+    if (just_replaced_ && just_replaced_ != replaced_) {
+        multi_leaf.just_added_[just_replaced_idx] = true;
     }
-    if (just_removed_) {
-        const auto just_removed_idx = multi_leaf.index_[*just_removed_];
-        multi_leaf.present_[just_removed_idx] = false;
-        multi_leaf.just_removed_[just_removed_idx] = true;
+    if (replaced_ && just_replaced_ != replaced_) {
+        multi_leaf.just_removed_[replaced_idx] = true;
+    }
+    if (just_replaced_) {
+        multi_leaf.present_[just_replaced_idx] = true;
     }
 
     self = std::move(multi_leaf);
 }
 
 void UniLeaf::apply(Leaf& self) {
-    if (added_ == just_removed_) {
-        added_ = std::nullopt;
-        just_removed_ = std::nullopt;
-    }
-
-    if (just_added_ == removed_) {
-        just_added_ = std::nullopt;
-        removed_ = std::nullopt;
-    }
-
-    if (just_added_) {
-        if (added_) {
-            convert_to_multi_leaf(self);
-            boost::get<MultiLeaf>(self).apply(self);
-            return;
-        }
-        added_ = just_added_;
-        just_added_ = std::nullopt;
-    }
-
-    if (just_removed_) {
-        // just_removed_ && removed_ — not possible. We can only have two elements as committed and added,
-        // if added_ == just_removed — then see above, if committed_ == just_removed_ — what's removed_?
-        removed_ = just_removed_;
-        just_removed_ = std::nullopt;
-    }
+    replaced_ = just_replaced_;
 }
 
 void UniLeaf::commit(Leaf& self) {
-    if (removed_) {
-        committed_ = std::nullopt;
-        removed_ = std::nullopt;
-    }
-
-    if (added_) {
-        if (committed_) {
-            convert_to_multi_leaf(self);
-            boost::get<MultiLeaf>(self).commit(self);
-            return;
-        }
-        committed_ = added_;
-        added_ = std::nullopt;
-    }
+    committed_ = replaced_;
 }
 
 void UniLeaf::rollback() {
-    added_ = std::nullopt;
-    removed_ = std::nullopt;
-    just_added_ = std::nullopt;
-    just_removed_ = std::nullopt;
+    replaced_ = just_replaced_ = committed_;
 }
 
 JustAdded UniLeaf::add_to_leaf(VertexID to, Leaf& self) {
-    if (to == just_added_) {
-        return false;
+    if (just_replaced_) {
+        convert_to_multi_leaf(self);
+        return boost::get<MultiLeaf>(self).add_to_leaf(to, self);
     }
-    if (to == just_removed_) {
-        just_removed_ = std::nullopt;
-        return false;
-    }
-    if (to == added_ || to == committed_ && !removed_) {
-        return false;
-    }
-    if (!just_added_) {
-        just_added_ = to;
-        return true;
-    }
-    convert_to_multi_leaf(self);
-    return boost::get<MultiLeaf>(self).add_to_leaf(to, self);
+    just_replaced_ = to;
+    return just_replaced_ != replaced_;
 }
 
 JustRemoved UniLeaf::discard_from_leaf(VertexID to, Leaf& self) {
-    if (to == just_added_) {
-        just_added_ = std::nullopt;
-        return false;
-    }
-    if (to == just_removed_) {
-        return false;
-    }
-    if (to == removed_) {
-        return false;
-    }
-    if (to != added_ && to != committed_) {
-        return false;
-    }
-    if (!just_removed_) {
-        just_removed_ = to;
-        return true;
-    }
-    convert_to_multi_leaf(self);
-    return boost::get<MultiLeaf>(self).discard_from_leaf(to, self);
+    if (to != just_replaced_) return false;
+    just_replaced_ = std::nullopt;
+    return replaced_;
 }
 
 JustRemoved UniLeaf::remove_all_from_leaf(Leaf& self) {
-    if (just_added_) {
-        just_added_ = std::nullopt;
-    }
-    if (added_) {
-        if (just_removed_) {
-            convert_to_multi_leaf(self);
-            return boost::get<MultiLeaf>(self).remove_all_from_leaf(self);
-        }
-        just_removed_ = added_;
-    }
-    if (committed_ && !removed_) {
-        if (just_removed_) {
-            convert_to_multi_leaf(self);
-            return boost::get<MultiLeaf>(self).remove_all_from_leaf(self);
-        }
-        just_removed_ = committed_;
-    }
-    return just_removed_;
+    just_replaced_ = std::nullopt;
+    return replaced_;
 }
 
 // ============================================================================
