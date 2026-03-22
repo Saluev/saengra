@@ -80,7 +80,7 @@ void MultiLeaf::iter_just_removed(std::vector<Edge>& dest) const {
     return iter_bitmask(just_removed_, dest);
 }
 
-void MultiLeaf::apply() {
+void MultiLeaf::apply(Leaf& self) {
     boost::dynamic_bitset<> temp = just_added_ & ~committed_;
     added_ ^= temp;
     added_ &= ~just_removed_;
@@ -90,7 +90,7 @@ void MultiLeaf::apply() {
     just_removed_.reset();
 }
 
-void MultiLeaf::commit() {
+void MultiLeaf::commit(Leaf& self) {
     committed_ |= added_;
     committed_ &= ~removed_;
     added_.reset();
@@ -145,7 +145,7 @@ void MultiLeaf::compactify_after_commit() {
     // other bitmasks are already set to 0
 }
 
-JustAdded MultiLeaf::add_to_leaf(VertexID to) {
+JustAdded MultiLeaf::add_to_leaf(VertexID to, Leaf& self) {
     auto it = index_.find(to);
     size_t idx;
     if (it == index_.end()) {
@@ -173,7 +173,7 @@ JustAdded MultiLeaf::add_to_leaf(VertexID to) {
     }
 }
 
-JustRemoved MultiLeaf::discard_from_leaf(VertexID to) {
+JustRemoved MultiLeaf::discard_from_leaf(VertexID to, Leaf& self) {
     auto it = index_.find(to);
     if (it == index_.end()) {
         return false;
@@ -192,7 +192,7 @@ JustRemoved MultiLeaf::discard_from_leaf(VertexID to) {
     }
 }
 
-JustRemoved MultiLeaf::remove_all_from_leaf() {
+JustRemoved MultiLeaf::remove_all_from_leaf(Leaf& self) {
     just_removed_ |= (present_ & ~just_added_);
     present_.reset();
     just_added_.reset();
@@ -207,7 +207,7 @@ Branch::Branch(VertexID from, bool is_inverse) : from_(from), is_inverse_(is_inv
 
 void Branch::apply() {
     for (auto& [label, leaf] : leaves_) {
-        boost::apply_visitor([](auto& l) { l.apply(); }, leaf);
+        boost::apply_visitor([&leaf](auto& l) { l.apply(leaf); }, leaf);
     }
 }
 
@@ -215,7 +215,7 @@ void Branch::commit() {
     // Iterate with copy to allow safe deletion
     std::vector<EdgeLabel> to_delete;
     for (auto& [label, leaf] : leaves_) {
-        boost::apply_visitor([](auto& l) { l.commit(); }, leaf);
+        boost::apply_visitor([&leaf](auto& l) { l.commit(leaf); }, leaf);
         if (boost::apply_visitor([](auto& l) { return l.is_present_empty(); }, leaf)) {
             to_delete.push_back(label);
         }
@@ -251,7 +251,7 @@ std::vector<EdgeLabel> Branch::iter_present_labels() const {
 
 void Branch::iter_present_and_remove(std::vector<std::pair<EdgeLabel, VertexID>>& result) {
     for (auto& [label, leaf] : leaves_) {
-        boost::apply_visitor([&result](auto& l) { l.iter_present(result); l.remove_all_from_leaf(); }, leaf);
+        boost::apply_visitor([&result, &leaf](auto& l) { l.iter_present(result); l.remove_all_from_leaf(leaf); }, leaf);
     }
 }
 
@@ -283,7 +283,7 @@ void Branch::iter_present_via_label(const EdgeLabel& label, std::vector<std::pai
 
 void Branch::iter_present_and_remove(std::vector<Edge>& result) {
     for (auto& [label, leaf] : leaves_) {
-        boost::apply_visitor([&result](auto& l) { l.iter_present(result); l.remove_all_from_leaf(); }, leaf);
+        boost::apply_visitor([&result, &leaf](auto& l) { l.iter_present(result); l.remove_all_from_leaf(leaf); }, leaf);
     }
 }
 
