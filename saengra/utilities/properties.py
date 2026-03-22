@@ -237,10 +237,10 @@ class RelatedEntityProperty(RelatedEntityPropertyBase):
         pass  # don't init cache, this attribute has to be set
 
     def clear_cache(self, e: "Entity") -> None:
-        _object_delattr(e, self._cache_attr_name)
+        _object_setattr(e, self._cache_attr_name, _uninitialized)
 
     def remove_from_cache(self, e: "Entity", what: "Entity") -> None:
-        _object_delattr(e, self._cache_attr_name)
+        _object_setattr(e, self._cache_attr_name, _uninitialized)
 
 
 def related_entity_property(
