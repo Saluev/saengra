@@ -19,9 +19,9 @@ using JustRemoved = bool;
 
 using LeafIndex = std::map<VertexID, size_t>;
 
-class Leaf {
+class MultiLeaf {
 public:
-    Leaf(VertexID from, const EdgeLabel& label, bool is_inverse);
+    MultiLeaf(VertexID from, const EdgeLabel& label, bool is_inverse);
 
     // Iterators
     void iter_present(std::vector<VertexID>& dest) const;
@@ -84,12 +84,12 @@ public:
     void rollback();
 
     // Inspecting
-    inline Leaf& get_or_create_leaf(const EdgeLabel& label) {
+    inline MultiLeaf& get_or_create_leaf(const EdgeLabel& label) {
         auto [it, inserted] = leaves_.try_emplace(label, from_, label, is_inverse_);
         return it->second;
     }
 
-    inline Leaf* get_leaf_or_null(const EdgeLabel& label) {
+    inline MultiLeaf* get_leaf_or_null(const EdgeLabel& label) {
         auto it = leaves_.find(label);
         if (it == leaves_.end()) {
             return nullptr;
@@ -120,7 +120,7 @@ public:
 private:
     VertexID from_;
     bool is_inverse_;
-    std::unordered_map<EdgeLabel, Leaf> leaves_;
+    std::unordered_map<EdgeLabel, MultiLeaf> leaves_;
 };
 
 class Trunk {
