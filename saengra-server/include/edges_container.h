@@ -20,12 +20,63 @@ using JustRemoved = bool;
 
 using LeafIndex = std::map<VertexID, size_t>;
 
+class UniLeaf;
 class MultiLeaf;
-using Leaf = boost::variant<MultiLeaf>;
+using Leaf = boost::variant<UniLeaf, MultiLeaf>;
+
+class UniLeaf {
+public:
+    UniLeaf(VertexID from, const EdgeLabel& label, bool is_inverse):
+        from_(from), label_(label), is_inverse_(is_inverse) {}
+
+    // Iterators
+    void iter_present(std::vector<VertexID>& dest) const;
+    void iter_just_added(std::vector<VertexID>& dest) const;
+    void iter_just_removed(std::vector<VertexID>& dest) const;
+
+    void iter_present(std::vector<std::pair<EdgeLabel, VertexID>>& dest) const;
+    void iter_just_added(std::vector<std::pair<EdgeLabel, VertexID>>& dest) const;
+    void iter_just_removed(std::vector<std::pair<EdgeLabel, VertexID>>& dest) const;
+
+    void iter_present(std::vector<Edge>& dest) const;
+    void iter_just_added(std::vector<Edge>& dest) const;
+    void iter_just_removed(std::vector<Edge>& dest) const;
+
+    // Transaction control
+    void apply(Leaf& self);
+    void commit(Leaf& self);
+    void rollback();
+
+    // Modifications
+    JustAdded add_to_leaf(VertexID to, Leaf& self);
+    JustRemoved discard_from_leaf(VertexID to, Leaf& self);
+    JustRemoved remove_all_from_leaf(Leaf& self);
+
+    // Check if empty
+    inline bool is_committed_empty() const { return !committed_.has_value(); }
+    inline bool is_present_empty() const {
+        return !just_added_.has_value()
+            && (!added_.has_value() || added_ == just_removed_)
+            && (!committed_.has_value() || committed_ == removed_ || committed_ == just_removed_);
+    }
+private:
+    void convert_to_multi_leaf(Leaf& self);
+
+    VertexID from_;
+    EdgeLabel label_;
+    bool is_inverse_;
+
+    std::optional<VertexID> committed_;
+    std::optional<VertexID> added_;
+    std::optional<VertexID> removed_;
+    std::optional<VertexID> just_added_;
+    std::optional<VertexID> just_removed_;
+};
 
 class MultiLeaf {
 public:
-    MultiLeaf(VertexID from, const EdgeLabel& label, bool is_inverse);
+    MultiLeaf(VertexID from, const EdgeLabel& label, bool is_inverse):
+        from_(from), label_(label), is_inverse_(is_inverse) {}
 
     // Iterators
     void iter_present(std::vector<VertexID>& dest) const;
@@ -73,6 +124,8 @@ private:
     boost::dynamic_bitset<> removed_;
     boost::dynamic_bitset<> just_added_;
     boost::dynamic_bitset<> just_removed_;
+
+    friend class UniLeaf;
 };
 
 // Forward declaration
@@ -89,7 +142,7 @@ public:
 
     // Inspecting
     inline Leaf& get_or_create_leaf(const EdgeLabel& label) {
-        auto [it, inserted] = leaves_.try_emplace(label, MultiLeaf(from_, label, is_inverse_));
+        auto [it, inserted] = leaves_.try_emplace(label, UniLeaf(from_, label, is_inverse_));
         return it->second;
     }
 
