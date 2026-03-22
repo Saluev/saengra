@@ -445,7 +445,8 @@ Branch::Branch(VertexID from, bool is_inverse) : from_(from), is_inverse_(is_inv
 
 void Branch::apply() {
     for (auto& [label, leaf] : leaves_) {
-        boost::apply_visitor([&leaf](auto& l) { l.apply(leaf); }, leaf);
+        if (auto* l = boost::get<UniLeaf>(&leaf)) l->apply(leaf);
+        else boost::get<MultiLeaf>(leaf).apply(leaf);
     }
 }
 
@@ -453,7 +454,8 @@ void Branch::commit() {
     // Iterate with copy to allow safe deletion
     std::vector<EdgeLabel> to_delete;
     for (auto& [label, leaf] : leaves_) {
-        boost::apply_visitor([&leaf](auto& l) { l.commit(leaf); }, leaf);
+        if (auto* l = boost::get<UniLeaf>(&leaf)) l->commit(leaf);
+        else boost::get<MultiLeaf>(leaf).commit(leaf);
         if (boost::apply_visitor([](auto& l) { return l.is_present_empty(); }, leaf)) {
             to_delete.push_back(label);
         }
@@ -489,7 +491,9 @@ std::vector<EdgeLabel> Branch::iter_present_labels() const {
 
 void Branch::iter_present_and_remove(std::vector<std::pair<EdgeLabel, VertexID>>& result) {
     for (auto& [label, leaf] : leaves_) {
-        boost::apply_visitor([&result, &leaf](auto& l) { l.iter_present(result); l.remove_all_from_leaf(leaf); }, leaf);
+        boost::apply_visitor([&result](auto& l) { l.iter_present(result); }, leaf);
+        if (auto* l = boost::get<UniLeaf>(&leaf)) l->remove_all_from_leaf(leaf);
+        else boost::get<MultiLeaf>(leaf).remove_all_from_leaf(leaf);
     }
 }
 
@@ -521,7 +525,9 @@ void Branch::iter_present_via_label(const EdgeLabel& label, std::vector<std::pai
 
 void Branch::iter_present_and_remove(std::vector<Edge>& result) {
     for (auto& [label, leaf] : leaves_) {
-        boost::apply_visitor([&result, &leaf](auto& l) { l.iter_present(result); l.remove_all_from_leaf(leaf); }, leaf);
+        boost::apply_visitor([&result](auto& l) { l.iter_present(result); }, leaf);
+        if (auto* l = boost::get<UniLeaf>(&leaf)) l->remove_all_from_leaf(leaf);
+        else boost::get<MultiLeaf>(leaf).remove_all_from_leaf(leaf);
     }
 }
 
