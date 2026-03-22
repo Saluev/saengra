@@ -171,7 +171,7 @@ class RelatedEntitiesSet(RelatedEntitiesContainer):
                 return
             if type(items) not in (list, set, RelatedEntitiesSet):
                 items = list(items)
-            self._add_many(items)
+            self._discard_many(items)
             return
 
         items = list(chain.from_iterable(s))
