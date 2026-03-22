@@ -5,9 +5,9 @@
 
 namespace saengra {
 
-Leaf::Leaf(VertexID from, const EdgeLabel& label, bool is_inverse) : from_(from), label_(label), is_inverse_(is_inverse) {}
+MultiLeaf::MultiLeaf(VertexID from, const EdgeLabel& label, bool is_inverse) : from_(from), label_(label), is_inverse_(is_inverse) {}
 
-void Leaf::iter_bitmask(const boost::dynamic_bitset<>& bitmask, std::vector<VertexID>& result) const {
+void MultiLeaf::iter_bitmask(const boost::dynamic_bitset<>& bitmask, std::vector<VertexID>& result) const {
     if (bitmask.none()) {
         return;
     }
@@ -18,7 +18,7 @@ void Leaf::iter_bitmask(const boost::dynamic_bitset<>& bitmask, std::vector<Vert
     }
 }
 
-void Leaf::iter_bitmask(const boost::dynamic_bitset<>& bitmask, std::vector<std::pair<EdgeLabel, VertexID>>& result) const {
+void MultiLeaf::iter_bitmask(const boost::dynamic_bitset<>& bitmask, std::vector<std::pair<EdgeLabel, VertexID>>& result) const {
     if (bitmask.none()) {
         return;
     }
@@ -29,7 +29,7 @@ void Leaf::iter_bitmask(const boost::dynamic_bitset<>& bitmask, std::vector<std:
     }
 }
 
-void Leaf::iter_bitmask(const boost::dynamic_bitset<>& bitmask, std::vector<Edge>& result) const {
+void MultiLeaf::iter_bitmask(const boost::dynamic_bitset<>& bitmask, std::vector<Edge>& result) const {
     if (bitmask.none()) {
         return;
     }
@@ -44,43 +44,43 @@ void Leaf::iter_bitmask(const boost::dynamic_bitset<>& bitmask, std::vector<Edge
     }
 }
 
-void Leaf::iter_present(std::vector<VertexID>& dest) const {
+void MultiLeaf::iter_present(std::vector<VertexID>& dest) const {
     return iter_bitmask(present_, dest);
 }
 
-void Leaf::iter_just_added(std::vector<VertexID>& dest) const {
+void MultiLeaf::iter_just_added(std::vector<VertexID>& dest) const {
     return iter_bitmask(just_added_, dest);
 }
 
-void Leaf::iter_just_removed(std::vector<VertexID>& dest) const {
+void MultiLeaf::iter_just_removed(std::vector<VertexID>& dest) const {
     return iter_bitmask(just_removed_, dest);
 }
 
-void Leaf::iter_present(std::vector<std::pair<EdgeLabel, VertexID>>& dest) const {
+void MultiLeaf::iter_present(std::vector<std::pair<EdgeLabel, VertexID>>& dest) const {
     return iter_bitmask(present_, dest);
 }
 
-void Leaf::iter_just_added(std::vector<std::pair<EdgeLabel, VertexID>>& dest) const {
+void MultiLeaf::iter_just_added(std::vector<std::pair<EdgeLabel, VertexID>>& dest) const {
     return iter_bitmask(just_added_, dest);
 }
 
-void Leaf::iter_just_removed(std::vector<std::pair<EdgeLabel, VertexID>>& dest) const {
+void MultiLeaf::iter_just_removed(std::vector<std::pair<EdgeLabel, VertexID>>& dest) const {
     return iter_bitmask(just_removed_, dest);
 }
 
-void Leaf::iter_present(std::vector<Edge>& dest) const {
+void MultiLeaf::iter_present(std::vector<Edge>& dest) const {
     return iter_bitmask(present_, dest);
 }
 
-void Leaf::iter_just_added(std::vector<Edge>& dest) const {
+void MultiLeaf::iter_just_added(std::vector<Edge>& dest) const {
     return iter_bitmask(just_added_, dest);
 }
 
-void Leaf::iter_just_removed(std::vector<Edge>& dest) const {
+void MultiLeaf::iter_just_removed(std::vector<Edge>& dest) const {
     return iter_bitmask(just_removed_, dest);
 }
 
-void Leaf::apply() {
+void MultiLeaf::apply() {
     boost::dynamic_bitset<> temp = just_added_ & ~committed_;
     added_ ^= temp;
     added_ &= ~just_removed_;
@@ -90,7 +90,7 @@ void Leaf::apply() {
     just_removed_.reset();
 }
 
-void Leaf::commit() {
+void MultiLeaf::commit() {
     committed_ |= added_;
     committed_ &= ~removed_;
     added_.reset();
@@ -98,7 +98,7 @@ void Leaf::commit() {
     compactify_after_commit();
 }
 
-void Leaf::rollback() {
+void MultiLeaf::rollback() {
     added_.reset();
     removed_.reset();
     just_added_.reset();
@@ -107,7 +107,7 @@ void Leaf::rollback() {
     compactify_after_commit();
 }
 
-void Leaf::compactify_after_commit() {
+void MultiLeaf::compactify_after_commit() {
     size_t useful_space = present_.count();
     if (useful_space == 0) {
         index_.clear();
@@ -145,7 +145,7 @@ void Leaf::compactify_after_commit() {
     // other bitmasks are already set to 0
 }
 
-JustAdded Leaf::add_to_leaf(VertexID to) {
+JustAdded MultiLeaf::add_to_leaf(VertexID to) {
     auto it = index_.find(to);
     size_t idx;
     if (it == index_.end()) {
@@ -173,7 +173,7 @@ JustAdded Leaf::add_to_leaf(VertexID to) {
     }
 }
 
-JustRemoved Leaf::discard_from_leaf(VertexID to) {
+JustRemoved MultiLeaf::discard_from_leaf(VertexID to) {
     auto it = index_.find(to);
     if (it == index_.end()) {
         return false;
@@ -192,7 +192,7 @@ JustRemoved Leaf::discard_from_leaf(VertexID to) {
     }
 }
 
-JustRemoved Leaf::remove_all_from_leaf() {
+JustRemoved MultiLeaf::remove_all_from_leaf() {
     just_removed_ |= (present_ & ~just_added_);
     present_.reset();
     just_added_.reset();

@@ -82,7 +82,7 @@ private:
         VertexID last_vertex_id_ = nullptr;
         Branch* last_branch_ = nullptr;
         const std::string* last_label_text_ = nullptr;
-        Leaf* last_leaf_ = nullptr;
+        MultiLeaf* last_leaf_ = nullptr;
     };
 
     class ApplyUpdatesContext {
