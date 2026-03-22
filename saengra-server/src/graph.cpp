@@ -50,25 +50,25 @@ std::vector<VertexID> Graph::ApplyUpdatesDirectionalContext::collect_all_from_le
     if (!last_leaf_) return no_edges;
 
     std::vector<VertexID> result;
-    last_leaf_->iter_present(result);
+    boost::apply_visitor([&result](auto& l) { l.iter_present(result); }, *last_leaf_);
     return result;
 }
 
 void Graph::ApplyUpdatesDirectionalContext::remove_all_from_leaf() {
-    if(last_leaf_->remove_all_from_leaf()) {
+    if (boost::apply_visitor([](auto& l) { return l.remove_all_from_leaf(); }, *last_leaf_)) {
         mark_branch_as_just_removed();
     }
 }
 
 void Graph::ApplyUpdatesDirectionalContext::remove_edge(VertexID to_id) {
-    if (last_leaf_->discard_from_leaf(to_id)) {
+    if (boost::apply_visitor([to_id](auto& l) { return l.discard_from_leaf(to_id); }, *last_leaf_)) {
         mark_branch_as_just_removed();
     }
 }
 
 void Graph::ApplyUpdatesDirectionalContext::add_edge(VertexID to_id) {
     // Here we assume that branch and leaf are correctly focused.
-    if (last_leaf_->add_to_leaf(to_id)) {
+    if (boost::apply_visitor([to_id](auto& l) { return l.add_to_leaf(to_id); }, *last_leaf_)) {
         mark_branch_as_just_added();
     }
 }
