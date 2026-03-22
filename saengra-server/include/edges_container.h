@@ -53,12 +53,8 @@ public:
     JustRemoved remove_all_from_leaf(Leaf& self);
 
     // Check if empty
-    inline bool is_committed_empty() const { return !committed_.has_value(); }
-    inline bool is_present_empty() const {
-        return !just_added_.has_value()
-            && (!added_.has_value() || added_ == just_removed_)
-            && (!committed_.has_value() || committed_ == removed_ || committed_ == just_removed_);
-    }
+    inline bool is_committed_empty() const { return !committed_; }
+    inline bool is_present_empty() const { return !just_replaced_; }
 private:
     void convert_to_multi_leaf(Leaf& self);
 
@@ -67,10 +63,8 @@ private:
     bool is_inverse_;
 
     std::optional<VertexID> committed_;
-    std::optional<VertexID> added_;
-    std::optional<VertexID> removed_;
-    std::optional<VertexID> just_added_;
-    std::optional<VertexID> just_removed_;
+    std::optional<VertexID> replaced_;
+    std::optional<VertexID> just_replaced_;
 };
 
 class MultiLeaf {
