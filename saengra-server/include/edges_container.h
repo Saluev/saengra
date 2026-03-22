@@ -3,6 +3,7 @@
 #include "vertex.h"
 #include "edge.h"
 #include <boost/dynamic_bitset.hpp>
+#include <boost/variant.hpp>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -18,6 +19,9 @@ using JustRemoved = bool;
 //>;
 
 using LeafIndex = std::map<VertexID, size_t>;
+
+class MultiLeaf;
+using Leaf = boost::variant<MultiLeaf>;
 
 class MultiLeaf {
 public:
@@ -84,12 +88,12 @@ public:
     void rollback();
 
     // Inspecting
-    inline MultiLeaf& get_or_create_leaf(const EdgeLabel& label) {
-        auto [it, inserted] = leaves_.try_emplace(label, from_, label, is_inverse_);
+    inline Leaf& get_or_create_leaf(const EdgeLabel& label) {
+        auto [it, inserted] = leaves_.try_emplace(label, MultiLeaf(from_, label, is_inverse_));
         return it->second;
     }
 
-    inline MultiLeaf* get_leaf_or_null(const EdgeLabel& label) {
+    inline Leaf* get_leaf_or_null(const EdgeLabel& label) {
         auto it = leaves_.find(label);
         if (it == leaves_.end()) {
             return nullptr;
@@ -120,7 +124,7 @@ public:
 private:
     VertexID from_;
     bool is_inverse_;
-    std::unordered_map<EdgeLabel, MultiLeaf> leaves_;
+    std::unordered_map<EdgeLabel, Leaf> leaves_;
 };
 
 class Trunk {

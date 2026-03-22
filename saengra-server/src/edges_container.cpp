@@ -207,7 +207,7 @@ Branch::Branch(VertexID from, bool is_inverse) : from_(from), is_inverse_(is_inv
 
 void Branch::apply() {
     for (auto& [label, leaf] : leaves_) {
-        leaf.apply();
+        boost::apply_visitor([](auto& l) { l.apply(); }, leaf);
     }
 }
 
@@ -215,8 +215,8 @@ void Branch::commit() {
     // Iterate with copy to allow safe deletion
     std::vector<EdgeLabel> to_delete;
     for (auto& [label, leaf] : leaves_) {
-        leaf.commit();
-        if (leaf.is_present_empty()) {
+        boost::apply_visitor([](auto& l) { l.commit(); }, leaf);
+        if (boost::apply_visitor([](auto& l) { return l.is_present_empty(); }, leaf)) {
             to_delete.push_back(label);
         }
     }
@@ -228,10 +228,10 @@ void Branch::commit() {
 void Branch::rollback() {
     std::vector<EdgeLabel> to_delete;
     for (auto& [label, leaf] : leaves_) {
-        if (leaf.is_committed_empty()) {
+        if (boost::apply_visitor([](auto& l) { return l.is_committed_empty(); }, leaf)) {
             to_delete.push_back(label);
         } else {
-            leaf.rollback();
+            boost::apply_visitor([](auto& l) { l.rollback(); }, leaf);
         }
     }
     for (const auto& label : to_delete) {
@@ -242,7 +242,7 @@ void Branch::rollback() {
 std::vector<EdgeLabel> Branch::iter_present_labels() const {
     std::vector<EdgeLabel> result;
     for (const auto& [label, leaf] : leaves_) {
-        if (!leaf.is_present_empty()) {
+        if (!boost::apply_visitor([](const auto& l) { return l.is_present_empty(); }, leaf)) {
             result.push_back(label);
         }
     }
@@ -251,26 +251,25 @@ std::vector<EdgeLabel> Branch::iter_present_labels() const {
 
 void Branch::iter_present_and_remove(std::vector<std::pair<EdgeLabel, VertexID>>& result) {
     for (auto& [label, leaf] : leaves_) {
-        leaf.iter_present(result);
-        leaf.remove_all_from_leaf();
+        boost::apply_visitor([&result](auto& l) { l.iter_present(result); l.remove_all_from_leaf(); }, leaf);
     }
 }
 
 void Branch::iter_present(std::vector<std::pair<EdgeLabel, VertexID>>& result) const {
     for (const auto& [label, leaf] : leaves_) {
-        leaf.iter_present(result);
+        boost::apply_visitor([&result](auto& l) { l.iter_present(result); }, leaf);
     }
 }
 
 void Branch::iter_just_added(std::vector<std::pair<EdgeLabel, VertexID>>& result) const {
     for (const auto& [label, leaf] : leaves_) {
-        leaf.iter_just_added(result);
+        boost::apply_visitor([&result](auto& l) { l.iter_just_added(result); }, leaf);
     }
 }
 
 void Branch::iter_just_removed(std::vector<std::pair<EdgeLabel, VertexID>>& result) const {
     for (const auto& [label, leaf] : leaves_) {
-        leaf.iter_just_removed(result);
+        boost::apply_visitor([&result](auto& l) { l.iter_just_removed(result); }, leaf);
     }
 }
 
@@ -279,32 +278,31 @@ void Branch::iter_present_via_label(const EdgeLabel& label, std::vector<std::pai
     if (it == leaves_.end()) {
         return;
     }
-    it->second.iter_present(result);
+    boost::apply_visitor([&result](const auto& l) { l.iter_present(result); }, it->second);
 }
 
 void Branch::iter_present_and_remove(std::vector<Edge>& result) {
     for (auto& [label, leaf] : leaves_) {
-        leaf.iter_present(result);
-        leaf.remove_all_from_leaf();
+        boost::apply_visitor([&result](auto& l) { l.iter_present(result); l.remove_all_from_leaf(); }, leaf);
     }
 }
 
 
 void Branch::iter_present(std::vector<Edge>& result) const {
     for (const auto& [label, leaf] : leaves_) {
-        leaf.iter_present(result);
+        boost::apply_visitor([&result](auto& l) { l.iter_present(result); }, leaf);
     }
 }
 
 void Branch::iter_just_added(std::vector<Edge>& result) const {
     for (const auto& [label, leaf] : leaves_) {
-        leaf.iter_just_added(result);
+        boost::apply_visitor([&result](auto& l) { l.iter_just_added(result); }, leaf);
     }
 }
 
 void Branch::iter_just_removed(std::vector<Edge>& result) const {
     for (const auto& [label, leaf] : leaves_) {
-        leaf.iter_just_removed(result);
+        boost::apply_visitor([&result](auto& l) { l.iter_just_removed(result); }, leaf);
     }
 }
 
@@ -313,7 +311,7 @@ void Branch::iter_present_via_label(const EdgeLabel& label, std::vector<Edge>& r
     if (it == leaves_.end()) {
         return;
     }
-    it->second.iter_present(result);
+    boost::apply_visitor([&result](const auto& l) { l.iter_present(result); }, it->second);
 }
 
 // ============================================================================
