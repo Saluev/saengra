@@ -41,14 +41,14 @@ public:
     void iter_just_removed(std::vector<Edge>& dest) const;
 
     // Transaction control
-    void apply();
-    void commit();
+    void apply(Leaf& self);
+    void commit(Leaf& self);
     void rollback();
 
     // Modifications
-    JustAdded add_to_leaf(VertexID to);
-    JustRemoved discard_from_leaf(VertexID to);
-    JustRemoved remove_all_from_leaf();
+    JustAdded add_to_leaf(VertexID to, Leaf& self);
+    JustRemoved discard_from_leaf(VertexID to, Leaf& self);
+    JustRemoved remove_all_from_leaf(Leaf& self);
 
     // Check if empty
     inline bool is_committed_empty() const { return committed_.none(); }
