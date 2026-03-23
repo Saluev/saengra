@@ -27,21 +27,20 @@ using Leaf = boost::variant<UniLeaf, MultiLeaf>;
 
 class UniLeaf {
 public:
-    UniLeaf(VertexID from, const EdgeLabel& label, bool is_inverse):
-        from_(from), label_(label), is_inverse_(is_inverse) {}
+    UniLeaf() = default;
 
     // Iterators
     void iter_present(std::vector<VertexID>& dest) const;
     void iter_just_added(std::vector<VertexID>& dest) const;
     void iter_just_removed(std::vector<VertexID>& dest) const;
 
-    void iter_present(std::vector<std::pair<EdgeLabel, VertexID>>& dest) const;
-    void iter_just_added(std::vector<std::pair<EdgeLabel, VertexID>>& dest) const;
-    void iter_just_removed(std::vector<std::pair<EdgeLabel, VertexID>>& dest) const;
+    void iter_present(std::vector<std::pair<EdgeLabel, VertexID>>& dest, EdgeLabel label) const;
+    void iter_just_added(std::vector<std::pair<EdgeLabel, VertexID>>& dest, EdgeLabel label) const;
+    void iter_just_removed(std::vector<std::pair<EdgeLabel, VertexID>>& dest, EdgeLabel label) const;
 
-    void iter_present(std::vector<Edge>& dest) const;
-    void iter_just_added(std::vector<Edge>& dest) const;
-    void iter_just_removed(std::vector<Edge>& dest) const;
+    void iter_present(std::vector<Edge>& dest, VertexID from, EdgeLabel label, bool is_inverse) const;
+    void iter_just_added(std::vector<Edge>& dest, VertexID from, EdgeLabel label, bool is_inverse) const;
+    void iter_just_removed(std::vector<Edge>& dest, VertexID from, EdgeLabel label, bool is_inverse) const;
 
     // Transaction control
     void apply(Leaf& self);
@@ -59,10 +58,6 @@ public:
 private:
     void convert_to_multi_leaf(Leaf& self);
 
-    VertexID from_;
-    EdgeLabel label_;
-    bool is_inverse_;
-
     std::optional<VertexID> committed_;
     std::optional<VertexID> replaced_;
     std::optional<VertexID> just_replaced_;
@@ -78,26 +73,16 @@ struct MultiLeafTxData {
 
 class MultiLeaf {
 public:
-    MultiLeaf(VertexID from, const EdgeLabel& label, bool is_inverse):
-        from_(from), label_(label), is_inverse_(is_inverse),
+    MultiLeaf():
         tx_(std::make_unique<MultiLeafTxData>()) {}
 
     MultiLeaf(const MultiLeaf& other):
-        from_(other.from_), label_(other.label_), is_inverse_(other.is_inverse_),
         index_(other.index_), present_(other.present_),
         tx_(std::make_unique<MultiLeafTxData>(*other.tx_)) {}
 
     MultiLeaf& operator=(const MultiLeaf& other) {
-        // Copy constructor is required by boost::variant. Claude:
-        //     boost::variant has a "never-empty" guarantee — it's always holding a valid value of one of its types.
-        //     The problem is exception safety during assignment: if you assign a new value and the constructor
-        //     throws after the old value has been destroyed, you're left with nothing.
-        //     To handle this, boost::variant can copy the old value into backup storage before attempting the new
-        //     assignment, then restore from backup if it throws. That's why it requires CopyConstructible.
+        // Copy constructor is required by boost::variant. See edges_container.h comment.
         if (this != &other) {
-            from_ = other.from_;
-            label_ = other.label_;
-            is_inverse_ = other.is_inverse_;
             index_ = other.index_;
             present_ = other.present_;
             *tx_ = *other.tx_;
@@ -113,13 +98,13 @@ public:
     void iter_just_added(std::vector<VertexID>& dest) const;
     void iter_just_removed(std::vector<VertexID>& dest) const;
 
-    void iter_present(std::vector<std::pair<EdgeLabel, VertexID>>& dest) const;
-    void iter_just_added(std::vector<std::pair<EdgeLabel, VertexID>>& dest) const;
-    void iter_just_removed(std::vector<std::pair<EdgeLabel, VertexID>>& dest) const;
+    void iter_present(std::vector<std::pair<EdgeLabel, VertexID>>& dest, EdgeLabel label) const;
+    void iter_just_added(std::vector<std::pair<EdgeLabel, VertexID>>& dest, EdgeLabel label) const;
+    void iter_just_removed(std::vector<std::pair<EdgeLabel, VertexID>>& dest, EdgeLabel label) const;
 
-    void iter_present(std::vector<Edge>& dest) const;
-    void iter_just_added(std::vector<Edge>& dest) const;
-    void iter_just_removed(std::vector<Edge>& dest) const;
+    void iter_present(std::vector<Edge>& dest, VertexID from, EdgeLabel label, bool is_inverse) const;
+    void iter_just_added(std::vector<Edge>& dest, VertexID from, EdgeLabel label, bool is_inverse) const;
+    void iter_just_removed(std::vector<Edge>& dest, VertexID from, EdgeLabel label, bool is_inverse) const;
 
     // Transaction control
     void apply(Leaf& self);
@@ -137,13 +122,9 @@ public:
 
 private:
     void iter_bitmask(const boost::dynamic_bitset<>& bitmask, std::vector<VertexID>& dest) const;
-    void iter_bitmask(const boost::dynamic_bitset<>& bitmask, std::vector<std::pair<EdgeLabel, VertexID>>& dest) const;
-    void iter_bitmask(const boost::dynamic_bitset<>& bitmask, std::vector<Edge>& dest) const;
+    void iter_bitmask(const boost::dynamic_bitset<>& bitmask, std::vector<std::pair<EdgeLabel, VertexID>>& dest, EdgeLabel label) const;
+    void iter_bitmask(const boost::dynamic_bitset<>& bitmask, std::vector<Edge>& dest, VertexID from, EdgeLabel label, bool is_inverse) const;
     void compactify_after_commit();
-
-    VertexID from_;
-    EdgeLabel label_;
-    bool is_inverse_;
 
     LeafIndex index_;  // Maps VertexID to index in the bitsets
     boost::dynamic_bitset<> present_;
@@ -169,7 +150,7 @@ public:
 
     // Inspecting
     inline Leaf& get_or_create_leaf(const EdgeLabel& label) {
-        auto [it, inserted] = leaves_.try_emplace(label, UniLeaf(from_, label, is_inverse_));
+        auto [it, inserted] = leaves_.try_emplace(label, UniLeaf{});
         return it->second;
     }
 

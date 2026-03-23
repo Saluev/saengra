@@ -28,36 +28,36 @@ void UniLeaf::iter_just_removed(std::vector<VertexID>& dest) const {
     if (replaced_ && just_replaced_ != replaced_) dest.push_back(*replaced_);
 }
 
-void UniLeaf::iter_present(std::vector<std::pair<EdgeLabel, VertexID>>& dest) const {
+void UniLeaf::iter_present(std::vector<std::pair<EdgeLabel, VertexID>>& dest, EdgeLabel label) const {
     if (just_replaced_) {
-        dest.emplace_back(label_, *just_replaced_);
+        dest.emplace_back(label, *just_replaced_);
     }
 }
 
-void UniLeaf::iter_just_added(std::vector<std::pair<EdgeLabel, VertexID>>& dest) const {
-    if (just_replaced_ && just_replaced_ != replaced_) dest.emplace_back(label_, *just_replaced_);
+void UniLeaf::iter_just_added(std::vector<std::pair<EdgeLabel, VertexID>>& dest, EdgeLabel label) const {
+    if (just_replaced_ && just_replaced_ != replaced_) dest.emplace_back(label, *just_replaced_);
 }
 
-void UniLeaf::iter_just_removed(std::vector<std::pair<EdgeLabel, VertexID>>& dest) const {
-    if (replaced_ && just_replaced_ != replaced_) dest.emplace_back(label_, *replaced_);
+void UniLeaf::iter_just_removed(std::vector<std::pair<EdgeLabel, VertexID>>& dest, EdgeLabel label) const {
+    if (replaced_ && just_replaced_ != replaced_) dest.emplace_back(label, *replaced_);
 }
 
-void UniLeaf::iter_present(std::vector<Edge>& dest) const {
+void UniLeaf::iter_present(std::vector<Edge>& dest, VertexID from, EdgeLabel label, bool is_inverse) const {
     if (just_replaced_) {
-        push_edge(dest, from_, label_, *just_replaced_, is_inverse_);
+        push_edge(dest, from, label, *just_replaced_, is_inverse);
     }
 }
 
-void UniLeaf::iter_just_added(std::vector<Edge>& dest) const {
-    if (just_replaced_ && just_replaced_ != replaced_) push_edge(dest, from_, label_, *just_replaced_, is_inverse_);
+void UniLeaf::iter_just_added(std::vector<Edge>& dest, VertexID from, EdgeLabel label, bool is_inverse) const {
+    if (just_replaced_ && just_replaced_ != replaced_) push_edge(dest, from, label, *just_replaced_, is_inverse);
 }
 
-void UniLeaf::iter_just_removed(std::vector<Edge>& dest) const {
-    if (replaced_ && just_replaced_ != replaced_) push_edge(dest, from_, label_, *replaced_, is_inverse_);
+void UniLeaf::iter_just_removed(std::vector<Edge>& dest, VertexID from, EdgeLabel label, bool is_inverse) const {
+    if (replaced_ && just_replaced_ != replaced_) push_edge(dest, from, label, *replaced_, is_inverse);
 }
 
 void UniLeaf::convert_to_multi_leaf(Leaf& self) {
-    MultiLeaf multi_leaf(from_, label_, is_inverse_);
+    MultiLeaf multi_leaf;
 
     auto& tx = *multi_leaf.tx_;
     auto add_to_multi_leaf = [&multi_leaf](VertexID to) {
@@ -152,28 +152,24 @@ void MultiLeaf::iter_bitmask(const boost::dynamic_bitset<>& bitmask, std::vector
     }
 }
 
-void MultiLeaf::iter_bitmask(const boost::dynamic_bitset<>& bitmask, std::vector<std::pair<EdgeLabel, VertexID>>& result) const {
+void MultiLeaf::iter_bitmask(const boost::dynamic_bitset<>& bitmask, std::vector<std::pair<EdgeLabel, VertexID>>& result, EdgeLabel label) const {
     if (bitmask.none()) {
         return;
     }
     for (const auto& [to, idx] : index_) {
         if (idx < bitmask.size() && bitmask[idx]) {
-            result.emplace_back(label_, to);
+            result.emplace_back(label, to);
         }
     }
 }
 
-void MultiLeaf::iter_bitmask(const boost::dynamic_bitset<>& bitmask, std::vector<Edge>& result) const {
+void MultiLeaf::iter_bitmask(const boost::dynamic_bitset<>& bitmask, std::vector<Edge>& result, VertexID from, EdgeLabel label, bool is_inverse) const {
     if (bitmask.none()) {
         return;
     }
     for (const auto& [to, idx] : index_) {
         if (idx < bitmask.size() && bitmask[idx]) {
-            if (is_inverse_) {
-                result.emplace_back(to, label_, from_);
-            } else {
-                result.emplace_back(from_, label_, to);
-            }
+            push_edge(result, from, label, to, is_inverse);
         }
     }
 }
@@ -190,28 +186,28 @@ void MultiLeaf::iter_just_removed(std::vector<VertexID>& dest) const {
     return iter_bitmask(tx_->just_removed_, dest);
 }
 
-void MultiLeaf::iter_present(std::vector<std::pair<EdgeLabel, VertexID>>& dest) const {
-    return iter_bitmask(present_, dest);
+void MultiLeaf::iter_present(std::vector<std::pair<EdgeLabel, VertexID>>& dest, EdgeLabel label) const {
+    return iter_bitmask(present_, dest, label);
 }
 
-void MultiLeaf::iter_just_added(std::vector<std::pair<EdgeLabel, VertexID>>& dest) const {
-    return iter_bitmask(tx_->just_added_, dest);
+void MultiLeaf::iter_just_added(std::vector<std::pair<EdgeLabel, VertexID>>& dest, EdgeLabel label) const {
+    return iter_bitmask(tx_->just_added_, dest, label);
 }
 
-void MultiLeaf::iter_just_removed(std::vector<std::pair<EdgeLabel, VertexID>>& dest) const {
-    return iter_bitmask(tx_->just_removed_, dest);
+void MultiLeaf::iter_just_removed(std::vector<std::pair<EdgeLabel, VertexID>>& dest, EdgeLabel label) const {
+    return iter_bitmask(tx_->just_removed_, dest, label);
 }
 
-void MultiLeaf::iter_present(std::vector<Edge>& dest) const {
-    return iter_bitmask(present_, dest);
+void MultiLeaf::iter_present(std::vector<Edge>& dest, VertexID from, EdgeLabel label, bool is_inverse) const {
+    return iter_bitmask(present_, dest, from, label, is_inverse);
 }
 
-void MultiLeaf::iter_just_added(std::vector<Edge>& dest) const {
-    return iter_bitmask(tx_->just_added_, dest);
+void MultiLeaf::iter_just_added(std::vector<Edge>& dest, VertexID from, EdgeLabel label, bool is_inverse) const {
+    return iter_bitmask(tx_->just_added_, dest, from, label, is_inverse);
 }
 
-void MultiLeaf::iter_just_removed(std::vector<Edge>& dest) const {
-    return iter_bitmask(tx_->just_removed_, dest);
+void MultiLeaf::iter_just_removed(std::vector<Edge>& dest, VertexID from, EdgeLabel label, bool is_inverse) const {
+    return iter_bitmask(tx_->just_removed_, dest, from, label, is_inverse);
 }
 
 void MultiLeaf::apply(Leaf& self) {
@@ -394,7 +390,7 @@ std::vector<EdgeLabel> Branch::iter_present_labels() const {
 
 void Branch::iter_present_and_remove(std::vector<std::pair<EdgeLabel, VertexID>>& result) {
     for (auto& [label, leaf] : leaves_) {
-        boost::apply_visitor([&result](auto& l) { l.iter_present(result); }, leaf);
+        boost::apply_visitor([&](auto& l) { l.iter_present(result, label); }, leaf);
         if (auto* l = boost::get<UniLeaf>(&leaf)) l->remove_all_from_leaf(leaf);
         else boost::get<MultiLeaf>(leaf).remove_all_from_leaf(leaf);
     }
@@ -402,19 +398,19 @@ void Branch::iter_present_and_remove(std::vector<std::pair<EdgeLabel, VertexID>>
 
 void Branch::iter_present(std::vector<std::pair<EdgeLabel, VertexID>>& result) const {
     for (const auto& [label, leaf] : leaves_) {
-        boost::apply_visitor([&result](auto& l) { l.iter_present(result); }, leaf);
+        boost::apply_visitor([&](const auto& l) { l.iter_present(result, label); }, leaf);
     }
 }
 
 void Branch::iter_just_added(std::vector<std::pair<EdgeLabel, VertexID>>& result) const {
     for (const auto& [label, leaf] : leaves_) {
-        boost::apply_visitor([&result](auto& l) { l.iter_just_added(result); }, leaf);
+        boost::apply_visitor([&](const auto& l) { l.iter_just_added(result, label); }, leaf);
     }
 }
 
 void Branch::iter_just_removed(std::vector<std::pair<EdgeLabel, VertexID>>& result) const {
     for (const auto& [label, leaf] : leaves_) {
-        boost::apply_visitor([&result](auto& l) { l.iter_just_removed(result); }, leaf);
+        boost::apply_visitor([&](const auto& l) { l.iter_just_removed(result, label); }, leaf);
     }
 }
 
@@ -423,12 +419,12 @@ void Branch::iter_present_via_label(const EdgeLabel& label, std::vector<std::pai
     if (it == leaves_.end()) {
         return;
     }
-    boost::apply_visitor([&result](const auto& l) { l.iter_present(result); }, it->second);
+    boost::apply_visitor([&](const auto& l) { l.iter_present(result, label); }, it->second);
 }
 
 void Branch::iter_present_and_remove(std::vector<Edge>& result) {
     for (auto& [label, leaf] : leaves_) {
-        boost::apply_visitor([&result](auto& l) { l.iter_present(result); }, leaf);
+        boost::apply_visitor([&](auto& l) { l.iter_present(result, from_, label, is_inverse_); }, leaf);
         if (auto* l = boost::get<UniLeaf>(&leaf)) l->remove_all_from_leaf(leaf);
         else boost::get<MultiLeaf>(leaf).remove_all_from_leaf(leaf);
     }
@@ -437,19 +433,19 @@ void Branch::iter_present_and_remove(std::vector<Edge>& result) {
 
 void Branch::iter_present(std::vector<Edge>& result) const {
     for (const auto& [label, leaf] : leaves_) {
-        boost::apply_visitor([&result](auto& l) { l.iter_present(result); }, leaf);
+        boost::apply_visitor([&](const auto& l) { l.iter_present(result, from_, label, is_inverse_); }, leaf);
     }
 }
 
 void Branch::iter_just_added(std::vector<Edge>& result) const {
     for (const auto& [label, leaf] : leaves_) {
-        boost::apply_visitor([&result](auto& l) { l.iter_just_added(result); }, leaf);
+        boost::apply_visitor([&](const auto& l) { l.iter_just_added(result, from_, label, is_inverse_); }, leaf);
     }
 }
 
 void Branch::iter_just_removed(std::vector<Edge>& result) const {
     for (const auto& [label, leaf] : leaves_) {
-        boost::apply_visitor([&result](auto& l) { l.iter_just_removed(result); }, leaf);
+        boost::apply_visitor([&](const auto& l) { l.iter_just_removed(result, from_, label, is_inverse_); }, leaf);
     }
 }
 
@@ -458,7 +454,7 @@ void Branch::iter_present_via_label(const EdgeLabel& label, std::vector<Edge>& r
     if (it == leaves_.end()) {
         return;
     }
-    boost::apply_visitor([&result](const auto& l) { l.iter_present(result); }, it->second);
+    boost::apply_visitor([&](const auto& l) { l.iter_present(result, from_, label, is_inverse_); }, it->second);
 }
 
 // ============================================================================
