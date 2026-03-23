@@ -58,7 +58,8 @@ jobs:
             echo "Setting up vic"
             if [ -d "$WORKDIR/vic" ]; then
               cd "$WORKDIR/vic"
-              git pull || true
+              git fetch
+              git reset --hard origin/master
               cd "$WORKDIR/saengra"
             else
               git clone git@github.com:Saluev/vic.git "$WORKDIR/vic"
