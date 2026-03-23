@@ -2,6 +2,7 @@
 
 #include "vertex.h"
 #include "edge.h"
+#include <boost/container/flat_map.hpp>
 #include <boost/dynamic_bitset.hpp>
 #include <boost/variant.hpp>
 #include <memory>
@@ -204,7 +205,7 @@ public:
 private:
     VertexID from_;
     bool is_inverse_;
-    std::unordered_map<EdgeLabel, Leaf> leaves_;
+    boost::container::flat_map<EdgeLabel, Leaf> leaves_;
 };
 
 class Trunk {
