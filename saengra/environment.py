@@ -19,6 +19,15 @@ T = TypeVar("T")
 
 
 class Environment(EnvProtocol):
+    __slots__ = (
+        "_primitive_to_entity",
+        "_currently_committing",
+        "_adapter",
+        "_observers",
+        "_entities",
+        "_temporary_entities",
+    )
+
     def __init__(
         self,
         *,
@@ -26,10 +35,9 @@ class Environment(EnvProtocol):
         adapter: Adapter | None = None,
         entity_types: Iterable[Type[Entity]] | None = None,
     ) -> None:
-        self._entity_types = [] if entity_types is None else [*entity_types]
+        entity_types = [] if entity_types is None else [*entity_types]
         self._primitive_to_entity = {
-            entity_type.primitive_type: entity_type
-            for entity_type in self._entity_types
+            entity_type.primitive_type: entity_type for entity_type in entity_types
         }
         self._currently_committing = False
 
