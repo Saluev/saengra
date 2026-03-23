@@ -4,6 +4,7 @@
 #include "edge.h"
 #include <boost/dynamic_bitset.hpp>
 #include <boost/variant.hpp>
+#include <memory>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -67,10 +68,45 @@ private:
     std::optional<VertexID> just_replaced_;
 };
 
+struct MultiLeafTxData {
+    boost::dynamic_bitset<> committed_;
+    boost::dynamic_bitset<> added_;
+    boost::dynamic_bitset<> removed_;
+    boost::dynamic_bitset<> just_added_;
+    boost::dynamic_bitset<> just_removed_;
+};
+
 class MultiLeaf {
 public:
     MultiLeaf(VertexID from, const EdgeLabel& label, bool is_inverse):
-        from_(from), label_(label), is_inverse_(is_inverse) {}
+        from_(from), label_(label), is_inverse_(is_inverse),
+        tx_(std::make_unique<MultiLeafTxData>()) {}
+
+    MultiLeaf(const MultiLeaf& other):
+        from_(other.from_), label_(other.label_), is_inverse_(other.is_inverse_),
+        index_(other.index_), present_(other.present_),
+        tx_(std::make_unique<MultiLeafTxData>(*other.tx_)) {}
+
+    MultiLeaf& operator=(const MultiLeaf& other) {
+        // Copy constructor is required by boost::variant. Claude:
+        //     boost::variant has a "never-empty" guarantee — it's always holding a valid value of one of its types.
+        //     The problem is exception safety during assignment: if you assign a new value and the constructor
+        //     throws after the old value has been destroyed, you're left with nothing.
+        //     To handle this, boost::variant can copy the old value into backup storage before attempting the new
+        //     assignment, then restore from backup if it throws. That's why it requires CopyConstructible.
+        if (this != &other) {
+            from_ = other.from_;
+            label_ = other.label_;
+            is_inverse_ = other.is_inverse_;
+            index_ = other.index_;
+            present_ = other.present_;
+            *tx_ = *other.tx_;
+        }
+        return *this;
+    }
+
+    MultiLeaf(MultiLeaf&&) = default;
+    MultiLeaf& operator=(MultiLeaf&&) = default;
 
     // Iterators
     void iter_present(std::vector<VertexID>& dest) const;
@@ -96,7 +132,7 @@ public:
     JustRemoved remove_all_from_leaf(Leaf& self);
 
     // Check if empty
-    inline bool is_committed_empty() const { return committed_.none(); }
+    inline bool is_committed_empty() const { return tx_->committed_.none(); }
     inline bool is_present_empty() const { return present_.none(); }
 
 private:
@@ -109,15 +145,12 @@ private:
     EdgeLabel label_;
     bool is_inverse_;
 
-    LeafIndex index_;  // Maps VertexID to bit index
-
-    // Bitmasks
+    LeafIndex index_;  // Maps VertexID to index in the bitsets
     boost::dynamic_bitset<> present_;
-    boost::dynamic_bitset<> committed_;
-    boost::dynamic_bitset<> added_;
-    boost::dynamic_bitset<> removed_;
-    boost::dynamic_bitset<> just_added_;
-    boost::dynamic_bitset<> just_removed_;
+
+    // The rest of the fields (needed mostly during graph updates) are stored separately
+    // to make UniLeaf and MultiLeaf be roughly the same size and avoid excessive memory allocation.
+    std::unique_ptr<MultiLeafTxData> tx_;
 
     friend class UniLeaf;
 };

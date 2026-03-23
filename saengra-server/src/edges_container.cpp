@@ -59,6 +59,7 @@ void UniLeaf::iter_just_removed(std::vector<Edge>& dest) const {
 void UniLeaf::convert_to_multi_leaf(Leaf& self) {
     MultiLeaf multi_leaf(from_, label_, is_inverse_);
 
+    auto& tx = *multi_leaf.tx_;
     auto add_to_multi_leaf = [&multi_leaf](VertexID to) {
         size_t idx = multi_leaf.index_.size();
         multi_leaf.index_[to] = idx;
@@ -76,26 +77,26 @@ void UniLeaf::convert_to_multi_leaf(Leaf& self) {
 
     const auto index_size = multi_leaf.index_.size();
     multi_leaf.present_.resize(index_size);
-    multi_leaf.committed_.resize(index_size);
-    multi_leaf.added_.resize(index_size);
-    multi_leaf.removed_.resize(index_size);
-    multi_leaf.just_added_.resize(index_size);
-    multi_leaf.just_removed_.resize(index_size);
+    tx.committed_.resize(index_size);
+    tx.added_.resize(index_size);
+    tx.removed_.resize(index_size);
+    tx.just_added_.resize(index_size);
+    tx.just_removed_.resize(index_size);
 
     if (committed_) {
-        multi_leaf.committed_[committed_idx] = true;
+        tx.committed_[committed_idx] = true;
     }
     if (replaced_ && replaced_ != committed_) {
-        multi_leaf.added_[replaced_idx] = true;
+        tx.added_[replaced_idx] = true;
     }
     if (committed_ && replaced_ != committed_) {
-        multi_leaf.removed_[committed_idx] = true;
+        tx.removed_[committed_idx] = true;
     }
     if (just_replaced_ && just_replaced_ != replaced_) {
-        multi_leaf.just_added_[just_replaced_idx] = true;
+        tx.just_added_[just_replaced_idx] = true;
     }
     if (replaced_ && just_replaced_ != replaced_) {
-        multi_leaf.just_removed_[replaced_idx] = true;
+        tx.just_removed_[replaced_idx] = true;
     }
     if (just_replaced_) {
         multi_leaf.present_[just_replaced_idx] = true;
@@ -182,11 +183,11 @@ void MultiLeaf::iter_present(std::vector<VertexID>& dest) const {
 }
 
 void MultiLeaf::iter_just_added(std::vector<VertexID>& dest) const {
-    return iter_bitmask(just_added_, dest);
+    return iter_bitmask(tx_->just_added_, dest);
 }
 
 void MultiLeaf::iter_just_removed(std::vector<VertexID>& dest) const {
-    return iter_bitmask(just_removed_, dest);
+    return iter_bitmask(tx_->just_removed_, dest);
 }
 
 void MultiLeaf::iter_present(std::vector<std::pair<EdgeLabel, VertexID>>& dest) const {
@@ -194,11 +195,11 @@ void MultiLeaf::iter_present(std::vector<std::pair<EdgeLabel, VertexID>>& dest) 
 }
 
 void MultiLeaf::iter_just_added(std::vector<std::pair<EdgeLabel, VertexID>>& dest) const {
-    return iter_bitmask(just_added_, dest);
+    return iter_bitmask(tx_->just_added_, dest);
 }
 
 void MultiLeaf::iter_just_removed(std::vector<std::pair<EdgeLabel, VertexID>>& dest) const {
-    return iter_bitmask(just_removed_, dest);
+    return iter_bitmask(tx_->just_removed_, dest);
 }
 
 void MultiLeaf::iter_present(std::vector<Edge>& dest) const {
@@ -206,41 +207,45 @@ void MultiLeaf::iter_present(std::vector<Edge>& dest) const {
 }
 
 void MultiLeaf::iter_just_added(std::vector<Edge>& dest) const {
-    return iter_bitmask(just_added_, dest);
+    return iter_bitmask(tx_->just_added_, dest);
 }
 
 void MultiLeaf::iter_just_removed(std::vector<Edge>& dest) const {
-    return iter_bitmask(just_removed_, dest);
+    return iter_bitmask(tx_->just_removed_, dest);
 }
 
 void MultiLeaf::apply(Leaf& self) {
-    boost::dynamic_bitset<> temp = just_added_ & ~committed_;
-    added_ ^= temp;
-    added_ &= ~just_removed_;
-    removed_ |= (just_removed_ & committed_);
-    removed_ &= ~just_added_;
-    just_added_.reset();
-    just_removed_.reset();
+    auto& tx = *tx_;
+    boost::dynamic_bitset<> temp = tx.just_added_ & ~tx.committed_;
+    tx.added_ ^= temp;
+    tx.added_ &= ~tx.just_removed_;
+    tx.removed_ |= (tx.just_removed_ & tx.committed_);
+    tx.removed_ &= ~tx.just_added_;
+    tx.just_added_.reset();
+    tx.just_removed_.reset();
 }
 
 void MultiLeaf::commit(Leaf& self) {
-    committed_ |= added_;
-    committed_ &= ~removed_;
-    added_.reset();
-    removed_.reset();
+    auto& tx = *tx_;
+    tx.committed_ |= tx.added_;
+    tx.committed_ &= ~tx.removed_;
+    tx.added_.reset();
+    tx.removed_.reset();
     compactify_after_commit();
 }
 
 void MultiLeaf::rollback() {
-    added_.reset();
-    removed_.reset();
-    just_added_.reset();
-    just_removed_.reset();
-    present_ = committed_;
+    auto& tx = *tx_;
+    tx.added_.reset();
+    tx.removed_.reset();
+    tx.just_added_.reset();
+    tx.just_removed_.reset();
+    present_ = tx.committed_;
     compactify_after_commit();
 }
 
 void MultiLeaf::compactify_after_commit() {
+    auto& tx = *tx_;
     size_t useful_space = present_.count();
     if (useful_space == 0) {
         index_.clear();
@@ -268,28 +273,29 @@ void MultiLeaf::compactify_after_commit() {
     // Rebuild bitmasks
     size_t new_size = useful_space;
     present_.resize(new_size);
-    committed_.resize(new_size);
-    added_.resize(new_size);
-    removed_.resize(new_size);
-    just_added_.resize(new_size);
-    just_removed_.resize(new_size);
-    present_.set();    // Set all bits to 1
-    committed_.set();  // Set all bits to 1
+    tx.committed_.resize(new_size);
+    tx.added_.resize(new_size);
+    tx.removed_.resize(new_size);
+    tx.just_added_.resize(new_size);
+    tx.just_removed_.resize(new_size);
+    present_.set();      // Set all bits to 1
+    tx.committed_.set(); // Set all bits to 1
     // other bitmasks are already set to 0
 }
 
 JustAdded MultiLeaf::add_to_leaf(VertexID to, Leaf& self) {
+    auto& tx = *tx_;
     auto it = index_.find(to);
     size_t idx;
     if (it == index_.end()) {
         idx = index_.size();
         index_[to] = idx;
         present_.resize(idx + 1);
-        committed_.resize(idx + 1);
-        added_.resize(idx + 1);
-        removed_.resize(idx + 1);
-        just_added_.resize(idx + 1);
-        just_removed_.resize(idx + 1);
+        tx.committed_.resize(idx + 1);
+        tx.added_.resize(idx + 1);
+        tx.removed_.resize(idx + 1);
+        tx.just_added_.resize(idx + 1);
+        tx.just_removed_.resize(idx + 1);
     } else {
         idx = it->second;
     }
@@ -297,16 +303,17 @@ JustAdded MultiLeaf::add_to_leaf(VertexID to, Leaf& self) {
         return false;
     }
     present_[idx] = true;
-    if (just_removed_[idx]) {
-        just_removed_[idx] = false;
+    if (tx.just_removed_[idx]) {
+        tx.just_removed_[idx] = false;
         return false;
     } else {
-        just_added_[idx] = true;
+        tx.just_added_[idx] = true;
         return true;
     }
 }
 
 JustRemoved MultiLeaf::discard_from_leaf(VertexID to, Leaf& self) {
+    auto& tx = *tx_;
     auto it = index_.find(to);
     if (it == index_.end()) {
         return false;
@@ -316,20 +323,21 @@ JustRemoved MultiLeaf::discard_from_leaf(VertexID to, Leaf& self) {
         return false;
     }
     present_[idx] = false;
-    if (just_added_[idx]) {
-        just_added_[idx] = false;
+    if (tx.just_added_[idx]) {
+        tx.just_added_[idx] = false;
         return false;
     } else {
-        just_removed_[idx] = true;
+        tx.just_removed_[idx] = true;
         return true;
     }
 }
 
 JustRemoved MultiLeaf::remove_all_from_leaf(Leaf& self) {
-    just_removed_ |= (present_ & ~just_added_);
+    auto& tx = *tx_;
+    tx.just_removed_ |= (present_ & ~tx.just_added_);
     present_.reset();
-    just_added_.reset();
-    return just_removed_.any();
+    tx.just_added_.reset();
+    return tx.just_removed_.any();
 }
 
 // ============================================================================
