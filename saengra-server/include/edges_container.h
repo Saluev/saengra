@@ -204,7 +204,7 @@ public:
 private:
     VertexID from_;
     bool is_inverse_;
-    std::unordered_map<EdgeLabel, Leaf> leaves_;
+    std::map<EdgeLabel, Leaf> leaves_;
 };
 
 class Trunk {
