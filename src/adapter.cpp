@@ -21,6 +21,10 @@ struct PickleCache {
     // Two-level cache: C++ map from type pointer to per-type Python dict.
     // Avoids PyTuple_Pack on every lookup; type pointers are stable (immortal).
     absl::flat_hash_map<PyTypeObject*, PyObject*> type_to_dict;
+    // Secondary cache: PyObject* (bytes) → std::string, to avoid re-constructing
+    // std::string from bytes buffer on every cache hit. Bytes objects are kept
+    // alive by type_to_dict values (Python dicts), so pointers are stable.
+    absl::flat_hash_map<PyObject*, std::string> bytes_to_string;
     PyObject* pickle_module = nullptr;
     PyObject* pickle_dumps = nullptr;
     PyObject* pickle_loads = nullptr;
@@ -52,43 +56,47 @@ struct PickleCache {
         return dict;
     }
 
-    std::string get_pickled(PyObject* obj) {
+    const std::string& get_pickled(PyObject* obj) {
+        static const std::string empty;
         PyTypeObject* type = Py_TYPE(obj);
         PyObject* dict = get_type_dict(type);
 
         PyObject* cached = PyDict_GetItem(dict, obj);
         if (cached) {
+            auto it = bytes_to_string.find(cached);
+            if (it != bytes_to_string.end()) {
+                return it->second;
+            }
+            // First time seeing this bytes object (e.g. after bytes_to_string was cleared)
             char* data;
             Py_ssize_t size;
             PyBytes_AsStringAndSize(cached, &data, &size);
-            return std::string(data, size);
+            return bytes_to_string.emplace(cached, std::string(data, size)).first->second;
         }
 
         if (!pickle_dumps) {
             PyErr_SetString(PyExc_RuntimeError, "pickle.dumps not available");
-            return "";
+            return empty;
         }
 
         PyObject* result = PyObject_CallFunctionObjArgs(pickle_dumps, obj, NULL);
         if (!result) {
-            return "";
+            return empty;
         }
 
         if (!PyBytes_Check(result)) {
             Py_DECREF(result);
             PyErr_SetString(PyExc_TypeError, "pickle.dumps did not return bytes");
-            return "";
+            return empty;
         }
 
         char* data;
         Py_ssize_t size;
         PyBytes_AsStringAndSize(result, &data, &size);
-        std::string pickled(data, size);
-
         PyDict_SetItem(dict, obj, result);
+        const std::string& s = bytes_to_string.emplace(result, std::string(data, size)).first->second;
         Py_DECREF(result);
-
-        return pickled;
+        return s;
     }
 
     PyObject* unpickle(const std::string& data) {
@@ -109,6 +117,7 @@ struct PickleCache {
         for (auto& [type, dict] : type_to_dict) {
             PyDict_Clear(dict);
         }
+        bytes_to_string.clear();
     }
 };
 
