@@ -60,27 +60,27 @@ void UniLeaf::convert_to_multi_leaf(Leaf& self) {
     MultiLeaf multi_leaf(from_, label_, is_inverse_);
 
     auto add_to_multi_leaf = [&multi_leaf](VertexID to) {
-        auto it = multi_leaf.index_.find(to);
-        size_t idx;
-        if (it == multi_leaf.index_.end()) {
-            idx = multi_leaf.index_.size();
-            multi_leaf.index_[to] = idx;
-        } else {
-            idx = it->second;
-        }
+        size_t idx = multi_leaf.index_.size();
+        multi_leaf.index_[to] = idx;
         return idx;
     };
 
     const size_t committed_idx = committed_ ? add_to_multi_leaf(*committed_) : 0;
-    const size_t replaced_idx = replaced_ ? add_to_multi_leaf(*replaced_) : 0;
-    const size_t just_replaced_idx = just_replaced_ ? add_to_multi_leaf(*just_replaced_) : 0;
+    const size_t replaced_idx =
+        replaced_ == committed_ ? committed_idx :
+        (replaced_ ? add_to_multi_leaf(*replaced_) : 0);
+    const size_t just_replaced_idx =
+        just_replaced_ == replaced_ ? replaced_idx :
+        (just_replaced_ == committed_ ? committed_idx :
+        (just_replaced_ ? add_to_multi_leaf(*just_replaced_) : 0));
 
-    multi_leaf.present_.resize(multi_leaf.index_.size());
-    multi_leaf.committed_.resize(multi_leaf.index_.size());
-    multi_leaf.added_.resize(multi_leaf.index_.size());
-    multi_leaf.removed_.resize(multi_leaf.index_.size());
-    multi_leaf.just_added_.resize(multi_leaf.index_.size());
-    multi_leaf.just_removed_.resize(multi_leaf.index_.size());
+    const auto index_size = multi_leaf.index_.size();
+    multi_leaf.present_.resize(index_size);
+    multi_leaf.committed_.resize(index_size);
+    multi_leaf.added_.resize(index_size);
+    multi_leaf.removed_.resize(index_size);
+    multi_leaf.just_added_.resize(index_size);
+    multi_leaf.just_removed_.resize(index_size);
 
     if (committed_) {
         multi_leaf.committed_[committed_idx] = true;
