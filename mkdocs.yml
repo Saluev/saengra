@@ -6,6 +6,8 @@ site_description: Reactive pattern-matching in-memory graph database for Python
 nav:
   - Home: index.md
   - Installation: installation.md
+  - Tutorials:
+      - Social Network: tutorial_social.md
 theme: readthedocs
 plugins:
   - mkdocstrings:
@@ -13,3 +15,5 @@ plugins:
         python:
           options:
             members_order: source
+markdown_extensions:
+  - admonition

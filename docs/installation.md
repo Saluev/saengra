@@ -1,3 +1,5 @@
+# Installation
+
 Saengra is available on PyPI and can be installed with your basic `pip install`:
 
 ```shell

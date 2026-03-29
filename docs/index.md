@@ -2,6 +2,7 @@
 
 Saengra is a reactive pattern-matching in-memory graph database. Current
 capabilities include:
+
 * in-memory vertex/edge storage
 * support for (currently non-concurrent) transactions
 * subgraph pattern matching based on regex-inspired pattern language
