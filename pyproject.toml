@@ -40,6 +40,10 @@ dev = [
     "twine",
     "cibuildwheel",
 ]
+docs = [
+    "sphinx>=7.0",
+    "furo",
+]
 
 [project.urls]
 Homepage = "https://github.com/Saluev/saengra"
