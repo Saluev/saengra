@@ -146,12 +146,22 @@ class Environment(EnvProtocol):
     def find_edges(
         self,
         *,
+        from_: Primitive | Entity | list[Primitive | Entity] | None = None,
         with_label: str | None = None,
         to: Primitive | Entity | list[Primitive | Entity] | None = None,
     ) -> list[Edge]:
-        container = [] if to is None else to if isinstance(to, (list, tuple)) else [to]
+        from_container = (
+            []
+            if from_ is None
+            else from_ if isinstance(from_, (list, tuple)) else [from_]
+        )
+        to_container = (
+            [] if to is None else to if isinstance(to, (list, tuple)) else [to]
+        )
         edges = self._adapter.find_edges(
-            with_label=with_label, to_vertices=[_unwrap_primitive(v) for v in container]
+            from_vertices=[_unwrap_primitive(v) for v in from_container],
+            with_label=with_label,
+            to_vertices=[_unwrap_primitive(v) for v in to_container],
         )
         return edges
 

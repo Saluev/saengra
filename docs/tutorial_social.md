@@ -4,7 +4,7 @@ In this tutorial we will build some algorithms which may be used in creating
 a social network.
 
 !!! warning
-    Disclaimer: Saegnra currently is not designed for massive loads, nor it is
+    Disclaimer: Saengra currently is not designed for massive loads, nor it is
     for any kind of concurrent access. The theme for this tutorial has been chosen
     based on familiarity of average developer with concepts and functionality
     required for such a project.
@@ -181,6 +181,7 @@ def add_comment(
 ) -> None:
     post = Post.get(env, id=post_id)
     comment = Comment.create(
+        env,
         id=next_id(),  # integer generator declared somewhere
         authored_by=User.get(env, id=author_id),
         comments_on=post,
@@ -204,6 +205,8 @@ Let's add one more observer, with less trivial logic.
 
 ```python
 friend_of_a_friend = observer(
+    # Match all users linked with another user by an edge with "added_to_friends" label in
+    # both directions, who are linked to the third user who is not a friend of the first one.
     "user as u1"
     "    <added_to_friends> user"
     "        <added_to_friends> (?! u1) user as u2 (?! <added_to_friends> u1)"

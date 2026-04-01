@@ -39,11 +39,20 @@ def reverse(edge: Edge) -> Edge:
 
 @dataclass(frozen=True, slots=True)
 class AddVertex:
+    """
+    Add a vertex to the graph. If the vertex already exists, nothing happens.
+    """
+
     primitive: Primitive
 
 
 @dataclass(frozen=True, slots=True)
 class AddEdge:
+    """
+    Add an edge to the graph. If the edge already exists, nothing happens.
+    If `from_` or `to` are not present in the graph, the edge won't be created.
+    """
+
     from_: Primitive
     label: Label
     to: Primitive
@@ -51,11 +60,19 @@ class AddEdge:
 
 @dataclass(frozen=True, slots=True)
 class RemoveVertex:
+    """
+    Remove vertex from the graph. If the vertex does not exist, nothing happens.
+    """
+
     primitive: Primitive
 
 
 @dataclass(frozen=True, slots=True)
 class RemoveEdge:
+    """
+    Remove edge from the graph. If the edge does not exist, nothing happens.
+    """
+
     from_: Primitive
     label: Label
     to: Primitive
@@ -63,6 +80,11 @@ class RemoveEdge:
 
 @dataclass(frozen=True, slots=True)
 class RemoveEdgesToAll:
+    """
+    Remove all edges with particular label outgoing from a particular vertex.
+    If the vertex does not exist, nothing happens.
+    """
+
     from_: Primitive
     label: Label
 

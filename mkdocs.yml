@@ -8,6 +8,8 @@ nav:
   - Installation: installation.md
   - Tutorials:
       - Social Network: tutorial_social.md
+  - Usage:
+      - Graphs: usage_graphs.md
 theme: readthedocs
 plugins:
   - mkdocstrings:

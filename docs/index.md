@@ -108,7 +108,7 @@ confirmed_friendship_request = observer(
 def send_friendship_push_notification(a: person, b: person) -> None:
     ...
 
-env.register_observers([pending_friendship_request])
+env.register_observers([confirmed_friendship_request])
 ```
 
 This example is trivial, but observers work for patterns of arbitrary complexity,
