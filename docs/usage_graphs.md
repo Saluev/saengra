@@ -29,6 +29,8 @@ env.update(
 )
 ```
 
+## Graph updates
+
 The following graph updates are supported:
 
 ::: saengra.graph.AddVertex
@@ -36,30 +38,35 @@ The following graph updates are supported:
     options:
       show_root_heading: true
       show_source: true
+      heading_level: 3
 
 ::: saengra.graph.AddEdge
     handler: python
     options:
       show_root_heading: true
       show_source: true
+      heading_level: 3
 
 ::: saengra.graph.RemoveVertex
     handler: python
     options:
       show_root_heading: true
       show_source: true
+      heading_level: 3
 
 ::: saengra.graph.RemoveEdge
     handler: python
     options:
       show_root_heading: true
       show_source: true
+      heading_level: 3
 
 ::: saengra.graph.RemoveEdgesToAll
     handler: python
     options:
       show_root_heading: true
       show_source: true
+      heading_level: 3
 
 ## Graph traversal
 
