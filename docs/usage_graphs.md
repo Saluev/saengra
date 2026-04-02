@@ -13,7 +13,7 @@ Primitive converts into vertex as `(type(primitive).__name__, pickle.dumps(primi
 
 **Edges** within Saengra graphs are triplets `(from, label, to)`, where `from` and `to` are vertices, and `label`
 is an identifier (alphanumeric, starting with a letter). There can be only one edge from particular
-`from` vertex to particular `to` vertex with particular `label`.
+`from` vertex to particular `to` vertex with particular `label`. Edges with `from == to` are allowed.
 
 Saengra provides API to manipulate graph directly from Python code:
 

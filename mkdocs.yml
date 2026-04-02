@@ -10,6 +10,7 @@ nav:
       - Social Network: tutorial_social.md
   - Usage:
       - Graphs: usage_graphs.md
+      - Entities: usage_entities.md
 theme: readthedocs
 plugins:
   - mkdocstrings:
@@ -17,5 +18,6 @@ plugins:
         python:
           options:
             members_order: source
+            docstring_style: google
 markdown_extensions:
   - admonition

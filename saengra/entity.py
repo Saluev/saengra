@@ -166,19 +166,7 @@ class EntityMeta(type):
 
 class Entity(metaclass=EntityMeta):
     """
-    Sample usage:
-
-        @primitive
-        class player:
-            id: UUID
-
-        class Player(Entity, player):
-            name: str
-            allies: set["Player"]
-
-        primitive = Player.primitive_type(id=uuid4())
-        graph.update(AddVertex(primitive))
-        player = Player(graph=graph, primitive=primitive)
+    Base class for all entities.
     """
 
     __slots__ = ()
@@ -188,7 +176,9 @@ class Entity(metaclass=EntityMeta):
 
     # Instance attributes:
     primitive: Primitive
+    """ Primitive that corresponds to the entity."""
     alive: bool
+    """Whether the entity's corresponding primitive currently exists in the graph."""
     _env: EnvProtocol
     _inverse: InverseRefs
 
@@ -218,7 +208,22 @@ class Entity(metaclass=EntityMeta):
 
     def __new__(
         cls, env: EnvProtocol, primitive: Primitive | None = None, **kwargs
-    ) -> "Entity":
+    ) -> Self:
+        """Create entity object, but don't add the corresponding primitive to the graph.
+
+        Args:
+            env: the environment in which the entity is supposed to be.
+            primitive: explicit primitive to use as the vertex identity.
+                If omitted, constructed from `**kwargs` that reference primitive class fields.
+            **kwargs: primitive fields used to construct the primitive when
+                `primitive` is not provided explicitly.
+
+        Returns:
+            the newly created entity.
+
+        Raises:
+            ValueError: if extra `kwargs` not needed for primitive construction are passed.
+        """
         if primitive is None:
             primitive, _, kwargs = cls._construct_primitive(**kwargs)
         # noinspection PyProtectedMember
@@ -301,6 +306,21 @@ class Entity(metaclass=EntityMeta):
         __allow_extra_kwargs: bool = False,
         **kwargs: object,
     ) -> Self:
+        """Retrieve an existing entity, raise exception if doesn't exist.
+
+        Args:
+            env: the environment to look up the entity in.
+            primitive: explicit primitive to look up. If omitted, constructed
+                from `**kwargs` that reference primitive class fields.
+            **kwargs: primitive fields used to construct the primitive when
+                `primitive` is not provided explicitly.
+
+        Returns:
+            the existing entity.
+
+        Raises:
+            ValueError: if no entity with the given primitive exists.
+        """
         if primitive is None:
             primitive, _, kwargs = cls._construct_primitive(**kwargs)
         if kwargs and not __allow_extra_kwargs:
@@ -319,6 +339,20 @@ class Entity(metaclass=EntityMeta):
         __allow_extra_kwargs: bool = False,
         **kwargs,
     ) -> Self | None:
+        """Retrieve an existing entity, return `None` if doesn't exist.
+
+        Args:
+            env: the environment to look up the entity in.
+            primitive: explicit primitive to look up. If omitted, constructed
+                from `**kwargs` that reference primitive class fields.
+            **kwargs: primitive fields used to construct the primitive when
+                `primitive` is not provided explicitly.
+            __allow_extra_kwargs: can be used to pass extra `kwargs` which
+                wouldn't have any effect, without an exception. But why would you.
+
+        Returns:
+            the existing entity, or `None` if not found.
+        """
         if primitive is None:
             primitive, _, kwargs = cls._construct_primitive(**kwargs)
         if kwargs and not __allow_extra_kwargs:
@@ -337,6 +371,21 @@ class Entity(metaclass=EntityMeta):
         defaults: dict[str, Any] | None = None,
         **kwargs,
     ) -> Self:
+        """Retrieve an existing entity, create if it doesn't exist.
+
+        Args:
+            env: the environment to look up or add the entity in.
+            primitive: explicit primitive to look up or create. If omitted,
+                constructed from `**kwargs` that reference primitive class fields.
+            defaults: field values applied only when the entity is newly created,
+                ignored if it already exists.
+            **kwargs: Primitive fields used to construct the primitive when
+                `primitive` is not provided explicitly. Non-primitive fields
+                are set on the entity regardless of whether it was just created.
+
+        Returns:
+            the existing or newly created entity.
+        """
         if primitive is None:
             primitive, _, kwargs = cls._construct_primitive(**kwargs)
         result = cls(env=env, primitive=primitive)
@@ -361,6 +410,22 @@ class Entity(metaclass=EntityMeta):
     def create(
         cls: Type[Self], env: EnvProtocol, primitive: Primitive | None = None, **kwargs
     ) -> Self:
+        """Create a new entity, add the corresponding primitive to the graph, and
+        populate the graph with edges to other primitives.
+
+        Args:
+            env: the environment to add the entity to.
+            primitive: explicit primitive to use as the vertex identity.
+                If omitted, constructed from `**kwargs` that reference primitive class fields.
+            **kwargs: initial field values. Primitive class fields are used to construct
+                the primitive (if not provided explicitly); remaining fields are set
+                as edges from the newly added primitive.
+        Returns:
+            the newly created entity.
+
+        Raises:
+            ValueError: if an entity with the same primitive already exists.
+        """
         if primitive is None:
             primitive, _, kwargs = cls._construct_primitive(**kwargs)
         result = cls(env=env, primitive=primitive)
@@ -376,16 +441,31 @@ class Entity(metaclass=EntityMeta):
         return result
 
     def update(self, **kwargs) -> Self:
+        """Update field values on an existing entity. Essentially the same
+        as setting multiple attributes of the entity.
+
+        Args:
+            **kwargs: field names and their new values.
+
+        Returns:
+            the entity itself, for chaining.
+        """
         for k, v in kwargs.items():
             setattr(self, k, check_alive(k, v))
         return self
 
     def discard(self) -> None:
+        """Remove the entity from the graph, do nothing if doesn't exist."""
         if not self.alive:
             return
         self._env.remove(self)
 
     def remove(self) -> None:
+        """Remove the entity from the graph, raise exception if doesn't exist.
+
+        Raises:
+            ValueError: if the entity doesn't exist in the graph.
+        """
         if not self.alive:
             raise ValueError(f"{self.primitive} doesn't exist")
         self._env.remove(self)
