@@ -5,9 +5,9 @@ capabilities include:
 
 * in-memory vertex/edge storage
 * support for (currently non-concurrent) transactions
+* ORM-like Python wrapper for vertices and edges
 * subgraph pattern matching based on regex-inspired pattern language
 * create/update/delete observables for subgraphs matching a pattern
-* ORM-like Python wrapper for vertices and edges
 
 It is intended to be used as an engine for a particular subset of applications,
 where a large number of various entities and relations between them are present,
@@ -74,6 +74,36 @@ except Exception:
     raise
 ```
 
+## ORM-like Python wrapper
+
+To abstract from low-level graph operations like adding/removing vertices and edges,
+Saengra provides a Python wrapper which allows declaring a high-level models (similar
+to those in Python ORMs) that hide all the dirty work. 
+
+```python
+from saengra import primitive, Entity, Environment
+
+@primitive
+class person:
+    id: int
+    
+class Person(Entity, person):
+    name: str
+    added_to_friends: set["Person"]
+    corresponds_with: set["Person"]
+
+env = Environment(entity_types=[Person])
+alice = Person.create(env, id=1, name="Alice")
+bob = Person.create(env, primitive=person(id=2), name="Bob")
+alice.corresponds_with.add(bob)
+env.commit()
+
+...
+
+alice = Person.get(env, id=1)
+alice.remove()
+```
+
 ## Subgraph pattern matching
 
 Once the graph is populated with various primitives and edges between them, an
@@ -115,33 +145,3 @@ This example is trivial, but observers work for patterns of arbitrary complexity
 providing immense opportunities for decoupling. No need to subscribe to dozens of
 event buses every time you add a feature — just declare what it depends on with
 a pattern and subscribe to updates.
-
-## ORM-like Python wrapper
-
-To abstract from low-level graph operations like adding/removing vertices and edges,
-Saengra provides a Python wrapper which allows declaring a high-level models (similar
-to those in Python ORMs) that hide all the dirty work. 
-
-```python
-from saengra import primitive, Entity, Environment
-
-@primitive
-class person:
-    id: int
-    
-class Person(Entity, person):
-    name: str
-    added_to_friends: set["Person"]
-    corresponds_with: set["Person"]
-
-env = Environment(entity_types=[Person])
-alice = Person.create(env, id=1, name="Alice")
-bob = Person.create(env, primitive=person(id=2), name="Bob")
-alice.corresponds_with.add(bob)
-env.commit()
-
-...
-
-alice = Person.get(env, id=1)
-alice.remove()
-```
