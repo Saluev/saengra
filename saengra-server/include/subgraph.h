@@ -41,29 +41,13 @@ struct Subgraph {
     Refs refs;
 
     inline bool operator<(const Subgraph& other) const {
-        if (start_position < other.start_position) return true;
-        if (other.start_position < start_position) return false;
-
-        if (end_positions < other.end_positions) return true;
-        if (other.end_positions < end_positions) return false;
-
-        if (vertices < other.vertices) return true;
-        if (other.vertices < vertices) return false;
-
-        if (edges < other.edges) return true;
-        if (other.edges < edges) return false;
-
-        return refs < other.refs;
+        return std::tie(start_position, end_positions, vertices, edges, refs)
+             < std::tie(other.start_position, other.end_positions, other.vertices, other.edges, other.refs);
     }
 
     inline bool operator==(const Subgraph& other) const {
-        return (
-            start_position == other.start_position
-            && end_positions == other.end_positions
-            && vertices == other.vertices
-            && edges == other.edges
-            && refs == other.refs
-        );
+         return std::tie(start_position, end_positions, vertices, edges, refs)
+             == std::tie(other.start_position, other.end_positions, other.vertices, other.edges, other.refs);
     }
 
     inline bool operator!=(const Subgraph& other) const {

@@ -19,6 +19,16 @@ struct SubgraphDraft {
     Refs refs;
 
     Subgraph finalize() const;
+
+    inline bool operator<(const SubgraphDraft& other) const {
+        return std::tie(start_position, end_positions, vertices, edges, refs)
+             < std::tie(other.start_position, other.end_positions, other.vertices, other.edges, other.refs);
+    }
+
+    inline bool operator==(const SubgraphDraft& other) const {
+         return std::tie(start_position, end_positions, vertices, edges, refs)
+             == std::tie(other.start_position, other.end_positions, other.vertices, other.edges, other.refs);
+    }
 };
 
 struct QuerySetDraft {
