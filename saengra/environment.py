@@ -8,7 +8,7 @@ from saengra.api import Observation
 from saengra.c_extension import DirectAdapter
 from saengra.client import SaengraClient
 from saengra.entity import Entity, EnvProtocol
-from saengra.graph import AddVertex, Edge, Primitive, RemoveVertex, Update
+from saengra.graph import AddVertex, Edge, Primitive, RemoveVertex, Update, Subgraph
 from saengra.observer import Observer, RefsHandler
 from saengra.socket_adapter import SocketAdapter
 from saengra.utilities.colors import light_green
@@ -182,6 +182,11 @@ class Environment(EnvProtocol):
             {k: self._wrap_into_existing_entity(v) for k, v in sg.refs.items()}
             for sg in subgraphs
         ]
+
+    def match_subgrapghs(
+        self, expression: str, *placeholder_values: Primitive
+    ) -> list[Subgraph]:
+        return self._adapter.match(expression, *placeholder_values)
 
     def register_observers(self, observers: list[Observer]) -> None:
         new_observers: dict[str, Observer] = {}
