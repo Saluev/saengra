@@ -12,6 +12,7 @@ nav:
       - Graphs: usage_graphs.md
       - Entities: usage_entities.md
       - Patterns: usage_patterns.md
+      - Observers: usage_observers.md
 theme: readthedocs
 plugins:
   - mkdocstrings:
