@@ -13,7 +13,9 @@ from saengra.api import (
 )
 from saengra.graph import (
     AddEdge,
+    AddEdges,
     AddVertex,
+    AddVertices,
     Position,
     Primitive,
     Refs,
@@ -62,11 +64,21 @@ class Converter:
             case AddVertex(primitive=v):
                 proto.kind = ApplyUpdates_Update_UpdateKind.ADD_VERTEX
                 self.vertex_to_proto(v, getattr(proto, "from"))
+            case AddVertices(primitives=primitives):
+                proto.kind = ApplyUpdates_Update_UpdateKind.ADD_VERTICES
+                for p in primitives:
+                    self.vertex_to_proto(p, proto.vertices.add())
             case AddEdge(from_=from_, label=label, to=to):
                 proto.kind = ApplyUpdates_Update_UpdateKind.ADD_EDGE
                 self.vertex_to_proto(from_, getattr(proto, "from"))
                 proto.label = label
                 self.vertex_to_proto(to, proto.to)
+            case AddEdges(from_=from_, label=label, tos=tos):
+                proto.kind = ApplyUpdates_Update_UpdateKind.ADD_EDGES
+                self.vertex_to_proto(from_, getattr(proto, "from"))
+                proto.label = label
+                for t in tos:
+                    self.vertex_to_proto(t, proto.tos.add())
             case RemoveVertex(primitive=v):
                 proto.kind = ApplyUpdates_Update_UpdateKind.REMOVE_VERTEX
                 self.vertex_to_proto(v, getattr(proto, "from"))
