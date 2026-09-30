@@ -42,6 +42,7 @@ message Request {
     Observe observe = 5;
     Find find = 6;
     Match match = 7;
+    Apply apply = 8;
   }
 }
 
@@ -72,6 +73,10 @@ message ApplyUpdates {
 
 message Commit {
   // Commit pending changes in the currently connected graph.
+}
+
+message Apply {
+  // Apply pending changes in the currently connected graph without committing them.
 }
 
 message Rollback {
@@ -117,6 +122,7 @@ message Response {
     ObserveResponse observe = 5;
     FindResponse find = 6;
     MatchResponse match = 7;
+    ApplyResponse apply = 8;
   }
 }
 
@@ -152,6 +158,13 @@ message CommitResponse {
       ON_DELETE = 2;
     }
   }
+}
+
+message ApplyResponse {
+  Status status = 1;
+  repeated CommitResponse.Observation observation = 2;
+
+  enum Status { OK = 0; NOT_CONNECTED = 1; }
 }
 
 message RollbackResponse {

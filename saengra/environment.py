@@ -100,9 +100,25 @@ class Environment(EnvProtocol):
     def update_many(self, updates: list[Update]) -> None:
         self._adapter.update(updates)
 
+    def apply(self) -> None:
+        if self._currently_committing:
+            raise RuntimeError(
+                "should not invoke .apply() or .commit() in pre-commit hooks"
+            )
+        try:
+            self._currently_committing = True
+            self._do_apply()
+        except Exception:
+            self.rollback()
+            raise
+        finally:
+            self._currently_committing = False
+
     def commit(self) -> None:
         if self._currently_committing:
-            raise RuntimeError("should not invoke .commit() in pre-commit hooks")
+            raise RuntimeError(
+                "should not invoke .apply() or .commit() in pre-commit hooks"
+            )
         try:
             self._currently_committing = True
             self._do_commit()
@@ -210,6 +226,24 @@ class Environment(EnvProtocol):
         self, primitive: Primitive, entity: "Entity"
     ) -> None:
         self._temporary_entities[primitive] = entity
+
+    def _do_apply(self) -> None:
+        before = perf_counter()
+        should_apply_again = True
+        num_iterations = 0
+        while should_apply_again:
+            observations = self._adapter.apply()
+            should_apply_again = bool(observations)
+            for o in observations:
+                self._invoke_handlers(o)
+
+            num_iterations += 1
+            if should_apply_again and num_iterations > 100:
+                raise RuntimeError("stuck in apply loop")
+        after = perf_counter()
+        logger.info(
+            f"Apply took {num_iterations} iterations, {after - before:.3f} seconds"
+        )
 
     def _do_commit(self) -> None:
         before = perf_counter()

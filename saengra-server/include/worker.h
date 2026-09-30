@@ -14,6 +14,8 @@ namespace saengra_api {
     class ApplyUpdatesResponse;
     class Commit;
     class CommitResponse;
+    class Apply;
+    class ApplyResponse;
     class Rollback;
     class RollbackResponse;
     class Observe;
@@ -54,6 +56,7 @@ private:
     void handleConnect(const saengra_api::Connect& request, saengra_api::ConnectResponse& response);
     void handleApplyUpdates(const saengra_api::ApplyUpdates& request, saengra_api::ApplyUpdatesResponse& response);
     void handleCommit(const saengra_api::Commit& request, saengra_api::CommitResponse& response);
+    void handleApply(const saengra_api::Apply& request, saengra_api::ApplyResponse& response);
     void handleRollback(const saengra_api::Rollback& request, saengra_api::RollbackResponse& response);
     void handleObserve(const saengra_api::Observe& request, saengra_api::ObserveResponse& response);
     void handleFind(const saengra_api::Find& request, saengra_api::FindResponse& response);

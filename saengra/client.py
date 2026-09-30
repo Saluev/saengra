@@ -11,11 +11,18 @@ from pathlib import Path
 from typing import Iterable
 
 from saengra import messages_pb2
-from saengra.api import CommitResponse, FindResponse, MatchResponse, Observer
+from saengra.api import (
+    CommitResponse,
+    FindResponse,
+    MatchResponse,
+    Observation,
+    Observer,
+)
 from saengra.conversions import Converter
 from saengra.errors import CommitError, ConnectError
 from saengra.errors import ConnectionError as SaengraConnectionError
 from saengra.errors import (
+    ApplyError,
     FindError,
     MatchError,
     ObserveError,
@@ -273,6 +280,27 @@ class SaengraClient:
             raise CommitError("Failed to commit changes")
 
         return self._converter.commit_response_from_proto(response.commit)
+
+    def apply(self) -> list[Observation]:
+        """Apply pending changes without committing them.
+
+        Returns:
+            Observations triggered by the applied changes
+
+        Raises:
+            ApplyError: If apply fails
+        """
+        request = messages_pb2.Request()
+        request.apply.CopyFrom(messages_pb2.Apply())
+        response = self._send_request(request)
+
+        if response.apply.status != messages_pb2.ApplyResponse.OK:
+            raise ApplyError("Failed to apply changes")
+
+        return [
+            self._converter.observation_from_proto(obs)
+            for obs in response.apply.observation
+        ]
 
     def rollback(self) -> None:
         """Rollback pending changes.

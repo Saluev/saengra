@@ -362,34 +362,8 @@ static PyObject* DirectAdapter_flush(DirectAdapterObject* self, PyObject* Py_UNU
     Py_RETURN_NONE;
 }
 
-// --- commit() ---
-
-static PyObject* DirectAdapter_commit(DirectAdapterObject* self, PyObject* Py_UNUSED(ignored)) {
-    // flush first
-    if (!self->pending_updates->empty()) {
-        self->graph->update(*self->pending_updates);
-        self->pending_updates->clear();
-    }
-
-    auto graph_observations = self->graph->apply();
-    if (graph_observations.empty()) {
-        self->graph->commit();
-        // return (False, [])
-        PyObject* empty_list = PyList_New(0);
-        PyObject* result = PyTuple_Pack(2, Py_False, empty_list);
-        Py_DECREF(empty_list);
-        return result;
-    }
-
-    auto native_obs = self->observer_container->observe_native(graph_observations);
-    if (native_obs.empty()) {
-        self->graph->commit();
-        PyObject* empty_list = PyList_New(0);
-        PyObject* result = PyTuple_Pack(2, Py_False, empty_list);
-        Py_DECREF(empty_list);
-        return result;
-    }
-
+// Converts native observations to a new Python list of saengra.api.Observation.
+static PyObject* native_observations_to_python(DirectAdapterObject* self, const std::vector<saengra::NativeObservation>& native_obs) {
     // Import Python types for observations
     PyObject* api_module = PyImport_ImportModule("saengra.api");
     if (!api_module) return NULL;
@@ -446,11 +420,62 @@ static PyObject* DirectAdapter_commit(DirectAdapterObject* self, PyObject* Py_UN
     }
 
     Py_DECREF(Observation_class); Py_DECREF(ObservationType_class);
+    return obs_list;
+}
+
+// --- commit() ---
+
+static PyObject* DirectAdapter_commit(DirectAdapterObject* self, PyObject* Py_UNUSED(ignored)) {
+    // flush first
+    if (!self->pending_updates->empty()) {
+        self->graph->update(*self->pending_updates);
+        self->pending_updates->clear();
+    }
+
+    auto graph_observations = self->graph->apply();
+    if (graph_observations.empty()) {
+        self->graph->commit();
+        // return (False, [])
+        PyObject* empty_list = PyList_New(0);
+        PyObject* result = PyTuple_Pack(2, Py_False, empty_list);
+        Py_DECREF(empty_list);
+        return result;
+    }
+
+    auto native_obs = self->observer_container->observe_native(graph_observations);
+    if (native_obs.empty()) {
+        self->graph->commit();
+        PyObject* empty_list = PyList_New(0);
+        PyObject* result = PyTuple_Pack(2, Py_False, empty_list);
+        Py_DECREF(empty_list);
+        return result;
+    }
+
+    PyObject* obs_list = native_observations_to_python(self, native_obs);
+    if (!obs_list) return NULL;
 
     // return (True, observations)
     PyObject* result = PyTuple_Pack(2, Py_True, obs_list);
     Py_DECREF(obs_list);
     return result;
+}
+
+// --- apply() ---
+
+static PyObject* DirectAdapter_apply(DirectAdapterObject* self, PyObject* Py_UNUSED(ignored)) {
+    // flush first
+    if (!self->pending_updates->empty()) {
+        self->graph->update(*self->pending_updates);
+        self->pending_updates->clear();
+    }
+
+    auto graph_observations = self->graph->apply();
+    if (graph_observations.empty()) {
+        return PyList_New(0);
+    }
+
+    auto native_obs = self->observer_container->observe_native(graph_observations);
+    return native_observations_to_python(self, native_obs);
 }
 
 // --- rollback() ---
@@ -938,6 +963,8 @@ static PyMethodDef DirectAdapter_methods[] = {
      "Flush pending updates to the graph"},
     {"commit", (PyCFunction)DirectAdapter_commit, METH_NOARGS,
      "Commit pending changes, return (should_commit_again, observations)"},
+    {"apply", (PyCFunction)DirectAdapter_apply, METH_NOARGS,
+     "Apply pending changes without committing, return observations"},
     {"rollback", (PyCFunction)DirectAdapter_rollback, METH_NOARGS,
      "Rollback all uncommitted changes"},
     {"find_vertices", (PyCFunction)DirectAdapter_find_vertices, METH_VARARGS | METH_KEYWORDS,

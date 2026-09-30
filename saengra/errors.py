@@ -22,6 +22,10 @@ class CommitError(CommandError):
     """Error committing changes."""
 
 
+class ApplyError(CommandError):
+    """Error applying changes."""
+
+
 class RollbackError(CommandError):
     """Error rolling back changes."""
 

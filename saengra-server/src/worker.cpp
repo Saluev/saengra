@@ -67,6 +67,8 @@ void Worker::run() {
             handleApplyUpdates(request.apply_updates(), *response.mutable_apply_updates());
         } else if (request.has_commit()) {
             handleCommit(request.commit(), *response.mutable_commit());
+        } else if (request.has_apply()) {
+            handleApply(request.apply(), *response.mutable_apply());
         } else if (request.has_rollback()) {
             handleRollback(request.rollback(), *response.mutable_rollback());
         } else if (request.has_observe()) {
@@ -216,6 +218,28 @@ void Worker::handleCommit(const saengra_api::Commit& request, saengra_api::Commi
     *response.mutable_observation() = {proto_observations.begin(), proto_observations.end()};
     response.set_status(saengra_api::CommitResponse_Status_REQUIRES_REPEATED_COMMIT);
     spdlog::info("Applied changes — got {} feedback observations", BRIGHT_WHITE(proto_observations.size()));
+}
+
+void Worker::handleApply(const saengra_api::Apply& request, saengra_api::ApplyResponse& response) {
+    spdlog::info("{}()", CYAN("Apply"));
+
+    if (current_env_ == nullptr) {
+        response.set_status(saengra_api::ApplyResponse_Status_NOT_CONNECTED);
+        spdlog::error("Can't apply — not connected");
+        return;
+    }
+
+    response.set_status(saengra_api::ApplyResponse_Status_OK);
+
+    auto graph_observations = current_env_->graph.apply();
+    if (graph_observations.empty()) {
+        spdlog::info("Applied changes — no observations from graph");
+        return;
+    }
+
+    auto proto_observations = current_env_->observer_container.observe_proto(graph_observations);
+    *response.mutable_observation() = {proto_observations.begin(), proto_observations.end()};
+    spdlog::info("Applied changes — got {} observations", BRIGHT_WHITE(proto_observations.size()));
 }
 
 void Worker::handleRollback(const saengra_api::Rollback& request, saengra_api::RollbackResponse& response) {

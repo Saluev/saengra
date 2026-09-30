@@ -32,6 +32,10 @@ class SocketAdapter:
         self._client.apply_updates(self._pending_updates)
         self._pending_updates.clear()
 
+    def apply(self) -> list[Observation]:
+        self.flush()
+        return self._client.apply()
+
     def commit(self) -> tuple[ShouldCommitAgain, list[Observation]]:
         self.flush()
         result = self._client.commit()
