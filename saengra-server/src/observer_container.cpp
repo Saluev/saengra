@@ -21,11 +21,11 @@ Observer::Observer(ObserverID id, Graph& graph, const saengra_api::Observe_Obser
     graph_(graph),
     matcher_(
         Matcher(),
-        Query{
+        make_query(
             graph,
             Parser(graph).parse(request.expression()),
             convert_placeholder_values(graph, request)
-        }
+        )
     ),
     on_create_(request.on_create()),
     on_change_(request.on_change()),
@@ -39,11 +39,11 @@ Observer::Observer(ObserverID id, Graph& graph, const std::string& expression,
     graph_(graph),
     matcher_(
         Matcher(),
-        Query{
+        make_query(
             graph,
             Parser(graph).parse(expression),
             placeholder_values
-        }
+        )
     ),
     on_create_(on_create),
     on_change_(on_change),

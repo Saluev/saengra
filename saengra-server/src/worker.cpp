@@ -422,7 +422,7 @@ void Worker::handleMatch(const saengra_api::Match& request, saengra_api::MatchRe
     }
 
     // Create the query
-    Query query{current_env_->graph, expr, placeholder_values};
+    Query query = make_query(current_env_->graph, expr, placeholder_values);
 
     // Find start positions
     StartPositionFinder finder;

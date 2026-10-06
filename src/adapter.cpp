@@ -4,6 +4,8 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <optional>
+#include <stdexcept>
 #include "absl/container/flat_hash_map.h"
 #include "graph.h"
 #include "observer_container.h"
@@ -773,6 +775,12 @@ static PyObject* DirectAdapter_observe(DirectAdapterObject* self, PyObject* args
                 id, expression, placeholder_values,
                 on_create, on_change, on_delete
             );
+        } catch (const std::invalid_argument& e) {
+            PyErr_SetString(PyExc_ValueError, e.what());
+            Py_DECREF(id_obj); Py_DECREF(expression_obj); Py_DECREF(placeholder_values_obj);
+            Py_DECREF(on_create_obj); Py_DECREF(on_change_obj); Py_DECREF(on_delete_obj);
+            Py_DECREF(observer); Py_DECREF(iter);
+            return NULL;
         } catch (const std::exception& e) {
             PyErr_SetString(PyExc_RuntimeError, e.what());
             Py_DECREF(id_obj); Py_DECREF(expression_obj); Py_DECREF(placeholder_values_obj);
@@ -820,20 +828,30 @@ static PyObject* DirectAdapter_match(DirectAdapterObject* self, PyObject* args) 
         placeholder_values.emplace_back(type_name, val);
     }
 
-    // Parse expression
-    saengra::Parser parser(*self->graph);
-    saengra::Expression expr = parser.parse(expression);
+    std::optional<saengra::QuerySet> match_result;
+    try {
+        // Parse expression
+        saengra::Parser parser(*self->graph);
+        saengra::Expression expr = parser.parse(expression);
 
-    // Create query
-    saengra::Query query{*self->graph, expr, placeholder_values};
+        // Create query
+        saengra::Query query = saengra::make_query(*self->graph, expr, placeholder_values);
 
-    // Find start positions
-    saengra::StartPositionFinder finder;
-    saengra::StartPositions start_positions = finder.find_start_positions(query);
+        // Find start positions
+        saengra::StartPositionFinder finder;
+        saengra::StartPositions start_positions = finder.find_start_positions(query);
 
-    // Match
-    saengra::Matcher matcher;
-    saengra::QuerySet result = matcher.match(query, start_positions);
+        // Match
+        saengra::Matcher matcher;
+        match_result.emplace(matcher.match(query, start_positions));
+    } catch (const std::invalid_argument& e) {
+        PyErr_SetString(PyExc_ValueError, e.what());
+        return NULL;
+    } catch (const std::exception& e) {
+        PyErr_SetString(PyExc_RuntimeError, e.what());
+        return NULL;
+    }
+    const saengra::QuerySet& result = *match_result;
 
     // Import Python types
     PyObject* graph_module = PyImport_ImportModule("saengra.graph");

@@ -25,7 +25,6 @@ public:
         const auto& vertices = query_.graph.get_vertices();
 
         if (expr.placeholder_idx.has_value()) {
-            // TODO validate number of placeholders against the expression
             const auto value = query_.placeholder_values[expr.placeholder_idx.value()];
             const auto vertex_id = vertices.get_vertex_id(value);
             if (vertex_id.has_value()) {
