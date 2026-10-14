@@ -3,7 +3,9 @@ import pytest
 from saengra import Environment
 from saengra.graph import (
     AddVertex,
+    AddVertices,
     AddEdge,
+    AddEdges,
     Edge,
     RemoveVertex,
     RemoveEdge,
@@ -34,6 +36,26 @@ def test_add_vertex(empty_env: Environment) -> None:
     assert empty_env.find_all_of_type(str) == {"foo"}
 
 
+def test_add_vertices(empty_env: Environment) -> None:
+    empty_env.update(AddVertices(primitives=("foo", "bar", "baz")))
+    assert empty_env.find_all_of_type(str) == {"foo", "bar", "baz"}
+
+    empty_env.commit()
+    assert empty_env.find_all_of_type(str) == {"foo", "bar", "baz"}
+
+
+def test_add_vertices_deduplication(empty_env: Environment) -> None:
+    empty_env.update(AddVertices(primitives=("foo", "foo", "bar")))
+    vertices, _ = empty_env.find_all()
+    assert {*vertices} == {"foo", "bar"}
+
+
+def test_add_vertices_empty(empty_env: Environment) -> None:
+    empty_env.update(AddVertices(primitives=()))
+    vertices, _ = empty_env.find_all()
+    assert not vertices
+
+
 def test_add_vertex_deduplication(empty_env: Environment) -> None:
     empty_env.update(AddVertex(primitive="foo"), AddVertex(primitive="bar"))
     vertices, _ = empty_env.find_all()
@@ -62,6 +84,38 @@ def test_add_vertex_distinguishes_str_from_str_enum(empty_env: Environment) -> N
     )
     vertices, _ = empty_env.find_all()
     assert len(vertices) == 2
+
+
+def test_add_edges(empty_env: Environment) -> None:
+    empty_env.update(AddVertex("from"), AddVertex("to1"), AddVertex("to2"))
+    empty_env.update(AddEdges("from", "label", tos=("to1", "to2")))
+    _, edges = empty_env.find_all()
+    assert set(edges) == {Edge("from", "label", "to1"), Edge("from", "label", "to2")}
+
+    empty_env.commit()
+    _, edges = empty_env.find_all()
+    assert set(edges) == {Edge("from", "label", "to1"), Edge("from", "label", "to2")}
+
+
+def test_add_edges_without_from_vertex(empty_env: Environment) -> None:
+    empty_env.update(AddVertex("to1"), AddVertex("to2"))
+    empty_env.update(AddEdges("from", "label", tos=("to1", "to2")))
+    _, edges = empty_env.find_all()
+    assert not edges
+
+
+def test_add_edges_skips_missing_to_vertices(empty_env: Environment) -> None:
+    empty_env.update(AddVertex("from"), AddVertex("to1"))
+    empty_env.update(AddEdges("from", "label", tos=("to1", "to2")))
+    _, edges = empty_env.find_all()
+    assert edges == [Edge("from", "label", "to1")]
+
+
+def test_add_edges_empty(empty_env: Environment) -> None:
+    empty_env.update(AddVertex("from"))
+    empty_env.update(AddEdges("from", "label", tos=()))
+    _, edges = empty_env.find_all()
+    assert not edges
 
 
 def test_add_edge_without_both_vertices(empty_env: Environment) -> None:

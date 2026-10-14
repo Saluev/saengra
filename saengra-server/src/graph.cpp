@@ -96,6 +96,8 @@ struct ProtoUpdateAccessor {
     static inline bool is_remove_vertex(const UpdateType& u) { return u.kind() == ProtoUpdateKind::RemoveVertex; }
     static inline bool is_remove_edge(const UpdateType& u) { return u.kind() == ProtoUpdateKind::RemoveEdge; }
     static inline bool is_remove_edges_to_all(const UpdateType& u) { return u.kind() == ProtoUpdateKind::RemoveEdgesToAll; }
+    static inline bool is_add_vertices(const UpdateType& u) { return u.kind() == ProtoUpdateKind::AddVertices; }
+    static inline bool is_add_edges(const UpdateType& u) { return u.kind() == ProtoUpdateKind::AddEdges; }
 
     static inline VertexData convert_from(const UpdateType& u, MutableVerticesContainer& vertices) {
         const auto type_name = vertices.internalize_type_name(u.from().type_name());
@@ -108,6 +110,24 @@ struct ProtoUpdateAccessor {
     static inline EdgeLabel convert_label(const UpdateType& u, MutableEdgesContainer& edges) {
         return edges.internalize_label(u.label());
     }
+    static inline std::vector<VertexData> convert_vertices(const UpdateType& u, MutableVerticesContainer& vertices) {
+        std::vector<VertexData> result;
+        result.reserve(u.vertices_size());
+        for (const auto& v : u.vertices()) {
+            const auto type_name = vertices.internalize_type_name(v.type_name());
+            result.emplace_back(type_name, v.value());
+        }
+        return result;
+    }
+    static inline std::vector<VertexData> convert_tos(const UpdateType& u, MutableVerticesContainer& vertices) {
+        std::vector<VertexData> result;
+        result.reserve(u.tos_size());
+        for (const auto& v : u.tos()) {
+            const auto type_name = vertices.internalize_type_name(v.type_name());
+            result.emplace_back(type_name, v.value());
+        }
+        return result;
+    }
 };
 
 struct NativeUpdateAccessor {
@@ -118,6 +138,8 @@ struct NativeUpdateAccessor {
     static inline bool is_remove_vertex(const UpdateType& u) { return u.kind == NativeUpdateKind::RemoveVertex; }
     static inline bool is_remove_edge(const UpdateType& u) { return u.kind == NativeUpdateKind::RemoveEdge; }
     static inline bool is_remove_edges_to_all(const UpdateType& u) { return u.kind == NativeUpdateKind::RemoveEdgesToAll; }
+    static inline bool is_add_vertices(const UpdateType& u) { return u.kind == NativeUpdateKind::AddVertices; }
+    static inline bool is_add_edges(const UpdateType& u) { return u.kind == NativeUpdateKind::AddEdges; }
 
     static inline VertexData convert_from(const UpdateType& u, MutableVerticesContainer& vertices) {
         const auto type_name = vertices.internalize_type_name(u.from.type_name);
@@ -129,6 +151,24 @@ struct NativeUpdateAccessor {
     }
     static inline EdgeLabel convert_label(const UpdateType& u, MutableEdgesContainer& edges) {
         return edges.internalize_label(u.label);
+    }
+    static inline std::vector<VertexData> convert_vertices(const UpdateType& u, MutableVerticesContainer& vertices) {
+        std::vector<VertexData> result;
+        result.reserve(u.vertices.size());
+        for (const auto& v : u.vertices) {
+            const auto type_name = vertices.internalize_type_name(v.type_name);
+            result.emplace_back(type_name, v.value);
+        }
+        return result;
+    }
+    static inline std::vector<VertexData> convert_tos(const UpdateType& u, MutableVerticesContainer& vertices) {
+        std::vector<VertexData> result;
+        result.reserve(u.tos.size());
+        for (const auto& v : u.tos) {
+            const auto type_name = vertices.internalize_type_name(v.type_name);
+            result.emplace_back(type_name, v.value);
+        }
+        return result;
     }
 };
 
@@ -145,6 +185,12 @@ void Graph::update_impl<ProtoUpdateAccessor, ProtoUpdates>(const ProtoUpdates& u
         switch (update.kind()) {
         case ProtoUpdateKind::AddVertex:
             add_vertex_impl<Accessor>(update, context);
+            break;
+        case ProtoUpdateKind::AddVertices:
+            add_vertices_impl<Accessor>(update, context);
+            break;
+        case ProtoUpdateKind::AddEdges:
+            add_edges_impl<Accessor>(update, context);
             break;
         case ProtoUpdateKind::RemoveVertex:
             remove_vertex_impl<Accessor>(update, context);
@@ -176,6 +222,12 @@ void Graph::update_impl<NativeUpdateAccessor, NativeUpdates>(const NativeUpdates
         case NativeUpdateKind::AddVertex:
             add_vertex_impl<Accessor>(update, context);
             break;
+        case NativeUpdateKind::AddVertices:
+            add_vertices_impl<Accessor>(update, context);
+            break;
+        case NativeUpdateKind::AddEdges:
+            add_edges_impl<Accessor>(update, context);
+            break;
         case NativeUpdateKind::RemoveVertex:
             remove_vertex_impl<Accessor>(update, context);
             break;
@@ -197,6 +249,37 @@ template<typename Accessor, typename UpdateT>
 void Graph::add_vertex_impl(const UpdateT& update, ApplyUpdatesContext& ctx) {
     const auto from = Accessor::convert_from(update, vertices_);
     vertices_.add_vertex(from);
+}
+
+
+template<typename Accessor, typename UpdateT>
+void Graph::add_vertices_impl(const UpdateT& update, ApplyUpdatesContext& ctx) {
+    for (const auto& vertex : Accessor::convert_vertices(update, vertices_)) {
+        vertices_.add_vertex(vertex);
+    }
+}
+
+
+template<typename Accessor, typename UpdateT>
+void Graph::add_edges_impl(const UpdateT& update, ApplyUpdatesContext& context) {
+    const auto from = Accessor::convert_from(update, vertices_);
+    const auto from_id = vertices_.get_vertex_id(from);
+    if (!from_id.has_value()) return;
+    const auto label = Accessor::convert_label(update, edges_);
+
+    context.forward.focus_on_branch(from_id.value(), true);
+    context.forward.focus_on_leaf(label, true);
+
+    for (const auto& to_data : Accessor::convert_tos(update, vertices_)) {
+        const auto to_id = vertices_.get_vertex_id(to_data);
+        if (!to_id.has_value()) continue;
+
+        context.forward.add_edge(to_id.value());
+
+        context.inverse.focus_on_branch(to_id.value(), true);
+        context.inverse.focus_on_leaf(label, true);
+        context.inverse.add_edge(from_id.value());
+    }
 }
 
 

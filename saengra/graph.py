@@ -47,6 +47,11 @@ class AddVertex:
 
 
 @dataclass(frozen=True, slots=True)
+class AddVertices:
+    primitives: tuple[Primitive, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class AddEdge:
     """
     Add an edge to the graph. If the edge already exists, nothing happens.
@@ -56,6 +61,13 @@ class AddEdge:
     from_: Primitive
     label: Label
     to: Primitive
+
+
+@dataclass(frozen=True, slots=True)
+class AddEdges:
+    from_: Primitive
+    label: Label
+    tos: tuple[Primitive, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,7 +101,7 @@ class RemoveEdgesToAll:
     label: Label
 
 
-Update = AddVertex | AddEdge | RemoveVertex | RemoveEdge | RemoveEdgesToAll
+Update = AddVertex | AddVertices | AddEdge | AddEdges | RemoveVertex | RemoveEdge | RemoveEdgesToAll
 
 
 @dataclass(frozen=True, slots=True)
