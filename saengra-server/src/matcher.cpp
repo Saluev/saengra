@@ -399,7 +399,7 @@ public:
                     if (!inserted) {
                         continue;
                     }
-                    operand_sg.end_positions = {operand_sg.start_position};
+                    operand_sg.end_positions = {start_.position};
                     operand_sg.vertices.clear();
                     operand_sg.edges.clear();
                     dest_.subgraphs.push_back(std::move(operand_sg));

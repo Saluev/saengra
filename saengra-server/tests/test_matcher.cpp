@@ -342,6 +342,32 @@ TEST_F(MatcherTest, MatchLongerConcatenation) {
     EXPECT_EQ(sg.edges.size(), 3);
 }
 
+TEST_F(MatcherTest, MatchVertexLookaheadAfterEdge) {
+    // Create chain: A -e1-> B -e2-> C
+    graph_.update({
+        make_add_vertex("Node", "A"),
+        make_add_vertex("Node", "B"),
+        make_add_vertex("Node", "C"),
+        make_add_edge("Node", "A", "e1", "Node", "B"),
+        make_add_edge("Node", "B", "e2", "Node", "C")
+    });
+
+    // Lookahead must keep the position at B, so that matching continues from B.
+    auto expr = parser_.parse("Node -e1-> (?= Node) Node -e2-> Node");
+    Query query{graph_, expr, {}};
+    auto start_positions = finder_.find_start_positions(query);
+    auto result = matcher_.match(query, start_positions);
+
+    ASSERT_EQ(count_subgraphs(result), 1);
+
+    VertexID b_id = get_vertex_id("Node", "B");
+    VertexID c_id = get_vertex_id("Node", "C");
+
+    const Subgraph& sg = result.subgraphs[0];
+    EXPECT_TRUE(has_vertex(sg, c_id));
+    EXPECT_TRUE(has_edge(sg, b_id, "e2", c_id));
+}
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
