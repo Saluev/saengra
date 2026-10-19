@@ -3,7 +3,7 @@
 namespace saengra {
 
 bool Refs::can_be_lifted_to(const Refs& complete_refs) const {
-    for (const auto& [k, v] : *this) {
+    for (const auto& [k, v] : refs_) {
         auto it = complete_refs.find(k);
         if (
             it == complete_refs.end()  // not supposed to happen, since `complete_refs` are complete
