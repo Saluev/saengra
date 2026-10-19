@@ -39,14 +39,4 @@ using RefsDomain = std::vector<Refs>;
 
 RefsDomain cartesian_product(const std::map<RefName, std::unordered_set<VertexID>>& all_values);
 
-RefSpaceAnalysis find_maximal_refspaces(const std::vector<RefSpace>& refspaces);
-/*
-"Maximal" here is respective to the non-absolute order of set inclusion.
-
-So, for refspaces {}, {a}, {b}, {a, b}, {b, c} maximal refspaces are {a, b} and {b, c}.
-
-Returns mapping of a refspace to its maximal refspaces. As seen in the example above,
-single refspace can be a subset of multiple maximal refspaces.
-*/
-
 }

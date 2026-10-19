@@ -47,9 +47,4 @@ RefsDomain cartesian_product(const std::map<RefName, std::unordered_set<VertexID
     return result;
 }
 
-RefSpaceAnalysis find_maximal_refspaces(const std::vector<RefSpace>& refspaces) {
-    // TODO one day...
-    return RefSpaceAnalysis{};
-}
-
 }
