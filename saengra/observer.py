@@ -132,9 +132,9 @@ class Observer:
             id=self.id,
             expression=self.expression,
             placeholder_values=self.placeholder_values,
-            on_create=bool(self.on_create),
-            on_change=bool(self.on_change),
-            on_delete=bool(self.on_delete),
+            on_create=bool(self.create_handlers),
+            on_change=bool(self.change_handlers),
+            on_delete=bool(self.delete_handlers),
         )
 
     def pick_handlers(self, observation_type: ObservationType) -> list[RefsHandler]:
