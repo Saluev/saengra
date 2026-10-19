@@ -429,7 +429,7 @@ public:
     }
 
     void operator()(const RepetitionExpr& expr) const {
-        throw new std::runtime_error("RepetitionExpr is not implemented");
+        throw std::runtime_error("RepetitionExpr is not implemented");
     }
 
 private:
