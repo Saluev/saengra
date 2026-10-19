@@ -31,9 +31,7 @@ RefsDomain multiply(const RefsDomain& refs_domain, RefName ref_name, std::unorde
     result.reserve(refs_domain.size() * values.size());
     for (const auto& prev_refs : refs_domain) {
         for (const auto& value : values) {
-            auto refs = prev_refs;  // copy
-            refs[ref_name] = value;
-            result.push_back(refs);
+            result.push_back(prev_refs.copy_and_set(ref_name, value));
         }
     }
     return result;

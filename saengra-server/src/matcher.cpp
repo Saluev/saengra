@@ -85,10 +85,9 @@ public:
             }
         }
 
-        Refs refs = start_.refs;
-        if (expr.set_ref.has_value()) {
-            refs[expr.set_ref.value()] = vertex_id;
-        }
+        Refs refs = expr.set_ref.has_value()
+            ? start_.refs.copy_and_set(expr.set_ref.value(), vertex_id)
+            : start_.refs;
 
         SubgraphDraft subgraph{
             start_.origin,
