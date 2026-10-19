@@ -1,4 +1,5 @@
 #include "edges_container.h"
+#include "utility.h"
 #include <algorithm>
 #include <unordered_set>
 #include <utility>
@@ -488,8 +489,8 @@ void Trunk::apply() {
     // Update have_added and have_removed
     have_added_.insert(have_just_added_.begin(), have_just_added_.end());
     have_removed_.insert(have_just_removed_.begin(), have_just_removed_.end());
-    have_just_added_.clear();
-    have_just_removed_.clear();
+    clear_and_shrink(have_just_added_);
+    clear_and_shrink(have_just_removed_);
 }
 
 void Trunk::commit() {
@@ -519,8 +520,8 @@ void Trunk::commit() {
         branches_.erase(from);
     }
 
-    have_added_.clear();
-    have_removed_.clear();
+    clear_and_shrink(have_added_);
+    clear_and_shrink(have_removed_);
 }
 
 void Trunk::rollback() {
@@ -536,10 +537,10 @@ void Trunk::rollback() {
         branches_.erase(from);
     }
 
-    have_added_.clear();
-    have_removed_.clear();
-    have_just_added_.clear();
-    have_just_removed_.clear();
+    clear_and_shrink(have_added_);
+    clear_and_shrink(have_removed_);
+    clear_and_shrink(have_just_added_);
+    clear_and_shrink(have_just_removed_);
 }
 
 void Trunk::iter_just_added(std::vector<Edge>& result) const {

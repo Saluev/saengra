@@ -1,4 +1,5 @@
 #include "vertices_container.h"
+#include "utility.h"
 
 namespace saengra {
 
@@ -99,15 +100,15 @@ void MutableVerticesContainer::apply() {
     remove_all(added, just_removed);
     add_intersection(removed, just_removed, committed);
     remove_all(removed, just_added);
-    just_added.clear();
-    just_removed.clear();
+    clear_and_shrink(just_added);
+    clear_and_shrink(just_removed);
 }
 
 void MutableVerticesContainer::commit() {
     add_all(committed, added);
     remove_all(committed, removed);
-    added.clear();
-    removed.clear();
+    clear_and_shrink(added);
+    clear_and_shrink(removed);
 
     // TODO clear VertexData <-> VertexID mappings for `removed`
     //      (and take care of IncrementalMatchers holding pointers to the now-removed vertices?)
@@ -122,10 +123,10 @@ void MutableVerticesContainer::rollback() {
     add_except(to_remove, added, just_removed);
     add_all(to_remove, just_added);
 
-    added.clear();
-    removed.clear();
-    just_added.clear();
-    just_removed.clear();
+    clear_and_shrink(added);
+    clear_and_shrink(removed);
+    clear_and_shrink(just_added);
+    clear_and_shrink(just_removed);
 
     add_all(present, to_add);
     for (auto vertex_id : to_add) {
