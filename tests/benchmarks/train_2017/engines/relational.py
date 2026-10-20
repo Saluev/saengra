@@ -7,8 +7,8 @@ them is purely algorithmic.
 
 Facts are tuples: `(Type, id)` for vertices, `(label, from, to)` for edges and
 `(attribute, id, value)` for attributes. Queries are conjunctions of positive conditions,
-negative conditions and tests; strings starting with `?` are variables, `_` is a wildcard
-(allowed in negative conditions only).
+negative conditions and tests; strings starting with `?` are variables, `_` is a wildcard.
+Negative conditions may have a test on their own variables and the variables bound before.
 """
 
 from collections import defaultdict
@@ -25,15 +25,17 @@ class Pos:
 
 
 @dataclass(frozen=True)
-class Neg:
-    rel: str
-    args: tuple
-
-
-@dataclass(frozen=True)
 class Test:
     vars: tuple[str, ...]
     fn: Callable[..., bool]
+
+
+@dataclass(frozen=True)
+class Neg:
+    rel: str
+    args: tuple
+    test: Test | None = None
+    """ Only facts passing the test block the match (supported by Rete only). """
 
 
 Condition = Pos | Neg | Test
@@ -173,7 +175,13 @@ class WorkingMemory:
                     yield 1, fact
 
     def apply(self, ops: Iterable[Op], on_fact: Callable[[int, tuple, AlphaMemory], None]) -> None:
-        for sign, fact in self.to_facts(ops):
+        self.apply_facts(self.to_facts(ops), on_fact)
+
+    def apply_facts(
+        self, changes: Iterable[tuple[int, tuple]], on_fact: Callable[[int, tuple, AlphaMemory], None]
+    ) -> None:
+        """Applies (sign, fact) pairs; facts are tuples starting with the relation name."""
+        for sign, fact in changes:
             for alpha in self.alphas_by_rel.get(fact[0], ()):
                 if not alpha.accepts(fact):
                     continue
@@ -209,6 +217,19 @@ class _ReteNode:
         self.left_memory: dict[tuple, set[tuple]] = defaultdict(set)
         self.tests: list[tuple[tuple[int, ...], Callable[..., bool]]] = []
         self.child: "_ReteNode | _ReteTerminal | None" = None
+        # Negative condition's test: (is the value from the fact?, position) for every variable.
+        self.neg_test: tuple[tuple[tuple[bool, int], ...], Callable[..., bool]] | None = None
+        if isinstance(cond, Neg) and cond.test is not None:
+            sources = tuple(
+                (False, layout.index(v)) if v in layout else (True, cond.args.index(v)) for v in cond.test.vars
+            )
+            self.neg_test = (sources, cond.test.fn)
+        self.passed: set[tuple] = set()
+        """ Tokens not blocked by any fact (maintained for negative conditions with a test only). """
+
+    def _blocks(self, token: tuple, fact: tuple) -> bool:
+        sources, fn = self.neg_test
+        return fn(*(fact[1 + p] if from_fact else token[p] for from_fact, p in sources))
 
     def _extend(self, token: tuple, fact: tuple) -> tuple | None:
         out = token + tuple(fact[1 + i] for i in self.new_positions)
@@ -228,6 +249,14 @@ class _ReteNode:
                 del self.left_memory[key]
         facts = self.right_index.get(key, ())
         if self.negative:
+            if self.neg_test is not None:
+                if sign > 0 and not any(self._blocks(token, f) for f in facts):
+                    self.passed.add(token)
+                    self.child.left_activate(token, 1)
+                elif sign < 0 and token in self.passed:
+                    self.passed.discard(token)
+                    self.child.left_activate(token, -1)
+                return
             if not facts:
                 self.child.left_activate(token, sign)
             return
@@ -240,6 +269,19 @@ class _ReteNode:
         key = tuple(fact[1 + p] for p in self.right_positions)
         tokens = self.left_memory.get(key)
         if not tokens:
+            return
+        if self.negative and self.neg_test is not None:
+            # The fact is already added to (removed from) the alpha memory.
+            bucket = self.right_index.get(key, ())
+            for token in list(tokens):
+                if (token in self.passed) != (sign > 0) or not self._blocks(token, fact):
+                    continue
+                if sign > 0:
+                    self.passed.discard(token)
+                    self.child.left_activate(token, -1)
+                elif not any(self._blocks(token, f) for f in bucket):
+                    self.passed.add(token)
+                    self.child.left_activate(token, 1)
             return
         if self.negative:
             remaining = len(self.right_index.get(key, ()))
@@ -283,6 +325,8 @@ class ReteEngine:
     ) -> None:
         self.wm = WorkingMemory()
         self.terminals: dict[str, _ReteTerminal] = {}
+        self.layouts: dict[str, list[str]] = {}
+        """ Variables of every query, in the order of their values in matches. """
         nodes_by_alpha: dict[int, list[_ReteNode]] = defaultdict(list)
         for query, conditions in queries.items():
             layout: list[str] = []
@@ -299,6 +343,7 @@ class ReteEngine:
                     layout = layout + [a for a in cond.args if is_var(a) and a not in layout]
                 nodes_by_alpha[id(node.alpha)].append(node)
             nodes[-1].child = self.terminals[query] = _ReteTerminal(query, listener)
+            self.layouts[query] = layout
             nodes[0].left_memory[()].add(())  # dummy top token
         for alpha in self.wm.alphas.values():
             # Descendants are right-activated before ancestors, so that a fact appearing in
@@ -314,6 +359,9 @@ class ReteEngine:
 
     def transform(self, ops: list[Op]) -> None:
         self.wm.apply(ops, self._on_fact)
+
+    def apply_facts(self, changes: Iterable[tuple[int, tuple]]) -> None:
+        self.wm.apply_facts(changes, self._on_fact)
 
     def check(self) -> dict[str, int]:
         return {q: len(t.matches) for q, t in self.terminals.items()}
@@ -367,6 +415,8 @@ class _TreatQuery:
         self.listener = listener
         self.positives = [c for c in conditions if isinstance(c, Pos)]
         self.negatives = [c for c in conditions if isinstance(c, Neg)]
+        if any(neg.test is not None for neg in self.negatives):
+            raise NotImplementedError("tests in negative conditions")
         self.tests = [c for c in conditions if isinstance(c, Test)]
         self.vars: list[str] = []
         for cond in self.positives:

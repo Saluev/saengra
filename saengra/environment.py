@@ -270,7 +270,7 @@ class Environment(EnvProtocol):
 
     def _invoke_handler(self, handler: RefsHandler, refs: dict[str, Primitive]) -> None:
         logger.debug(
-            f"Invoking {light_green(handler.__name__)}(%s)", LazyRefsFormatter(refs)
+            "Invoking %s(%s)", light_green(handler.__name__), LazyRefsFormatter(refs)
         )
         enriched_refs: dict[str, Primitive | Entity | Environment] = {}
         if env_arg := _get_env_arg(handler):

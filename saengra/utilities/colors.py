@@ -1,37 +1,49 @@
 from termcolor import colored
 
 
-def blue(s: str) -> str:
-    return colored(s, "blue", force_color=True)
+class LazyColoredText:
+    __slots__ = ("_text", "_color", "_attrs")
+
+    def __init__(self, text: object, color: str, attrs: list[str] | None = None) -> None:
+        self._text = text
+        self._color = color
+        self._attrs = attrs
+
+    def __str__(self) -> str:
+        return colored(str(self._text), self._color, attrs=self._attrs, force_color=True)
 
 
-def cyan(s: str) -> str:
-    return colored(s, "cyan", force_color=True)
+def blue(s: object) -> LazyColoredText:
+    return LazyColoredText(s, "blue")
 
 
-def green(s: str) -> str:
-    return colored(s, "green", force_color=True)
+def cyan(s: object) -> LazyColoredText:
+    return LazyColoredText(s, "cyan")
 
 
-def light_green(s: str) -> str:
-    return colored(s, "light_green", force_color=True)
+def green(s: object) -> LazyColoredText:
+    return LazyColoredText(s, "green")
 
 
-def magenta(s: str) -> str:
-    return colored(s, "magenta", force_color=True)
+def light_green(s: object) -> LazyColoredText:
+    return LazyColoredText(s, "light_green")
 
 
-def red(s: str) -> str:
-    return colored(s, "red", force_color=True)
+def magenta(s: object) -> LazyColoredText:
+    return LazyColoredText(s, "magenta")
 
 
-def bold_red(s: str) -> str:
-    return colored(s, "red", attrs=["bold"], force_color=True)
+def red(s: object) -> LazyColoredText:
+    return LazyColoredText(s, "red")
 
 
-def white(s: str) -> str:
-    return colored(s, "white", force_color=True)
+def bold_red(s: object) -> LazyColoredText:
+    return LazyColoredText(s, "red", ["bold"])
 
 
-def yellow(s: str) -> str:
-    return colored(s, "yellow", force_color=True)
+def white(s: object) -> LazyColoredText:
+    return LazyColoredText(s, "white")
+
+
+def yellow(s: object) -> LazyColoredText:
+    return LazyColoredText(s, "yellow")
