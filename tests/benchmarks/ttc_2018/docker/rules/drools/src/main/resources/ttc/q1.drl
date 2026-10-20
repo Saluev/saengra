@@ -1,0 +1,20 @@
+package ttc;
+
+// Q1 as one rule per relationship, feeding the shared scorer (same as the reference engines).
+
+global Scorer scorer;
+
+rule Comment
+when
+    Edge(label == "post", $p : to)
+then
+    scorer.add($p, 10);
+end
+
+rule Like
+when
+    Edge(label == "likes", $c : to)
+    Edge(label == "post", from == $c, $p : to)
+then
+    scorer.add($p, 1);
+end

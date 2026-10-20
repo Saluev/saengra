@@ -26,6 +26,7 @@ ENGINES: dict[str, EngineInfo] = {
     "treat-py": EngineInfo("TREAT (ref.)", "TREAT", "Python", False),
     "clips": EngineInfo("CLIPS 6.4", "Rete", "C", True),
     "drools": EngineInfo("Drools 8.44", "Phreak (lazy Rete)", "Java 21", True),
+    "jena": EngineInfo("Jena 5.2 rules", "Rete¹", "Java 21", True),
 }
 
 
@@ -100,8 +101,8 @@ def run_engine(engine: str, trace: Path, *, image: str | None, timeout: float) -
             "-w", "/repo",
             image,
         ]  # fmt: skip
-        if engine == "drools":
-            cmd = docker + ["java", "-jar", "/opt/drools-bench.jar", f"/data/{trace.name}"]
+        if engine in ("drools", "jena"):
+            cmd = docker + ["java", "-jar", f"/opt/{engine}-bench.jar", f"/data/{trace.name}"]
         else:
             cmd = docker + ["python3", "-m", "tests.benchmarks.train_2017.runner", engine, f"/data/{trace.name}"]
     proc = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True, timeout=timeout)
@@ -187,6 +188,9 @@ def format_report(measurements: list[Measurement], runs: int) -> str:
         "read+check: loading the model and computing initial matches; transf.+recheck: all iterations in total;",
         "vs Saengra: transf.+recheck time relative to Saengra (>1× means slower than Saengra);",
         "memory Δ: peak RSS growth after engine initialization (JVM figure includes heap reservation and JIT).",
-        "Saengra, Rete (ref.) and TREAT (ref.) run natively; CLIPS and Drools run in Docker (Linux VM).",
+        "Saengra, Rete (ref.) and TREAT (ref.) run natively; CLIPS, Drools and Jena run in Docker (Linux VM).",
+        "¹ Jena's forward engine can't maintain negative conditions (`noValue` isn't re-evaluated), so for",
+        "  SwitchMonitored, RouteSensor and SemaphoreNeighbor it maintains the positive part, and negation",
+        "  is checked when counting matches.",
     ]
     return "\n".join(lines)

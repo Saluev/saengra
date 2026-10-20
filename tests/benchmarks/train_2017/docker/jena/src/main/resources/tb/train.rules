@@ -1,0 +1,40 @@
+# Train Benchmark queries as Jena forward rules. Every rule derives one `rdf:type tb:<Query>Match`
+# triple per match, on a node made from the matched variables.
+# Type patterns implied by the metamodel are omitted, same as in the other relational engines.
+#
+# Jena's `noValue` is evaluated once, when a rule fires, and isn't re-evaluated when the triple
+# appears or disappears later, so it can't maintain negative conditions. Instead, rules for
+# queries with negation derive candidates (the positive part) with the variables that the
+# negative condition needs, and Main filters candidates when counting matches.
+
+@prefix tb: <urn:tb:>.
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#>.
+
+[PosLength: (?s tb:length ?l) le(?l, 0) makeSkolem(?m, 'PosLength', ?s)
+    -> (?m rdf:type tb:PosLengthMatch)]
+
+[SwitchMonitored: (?sw rdf:type tb:Switch) makeSkolem(?m, 'SwitchMonitored', ?sw)
+    -> (?m rdf:type tb:SwitchMonitoredCandidate) (?m tb:sw ?sw)]
+
+[RouteSensor: (?r tb:follows ?swP) (?swP tb:target ?sw) (?sw tb:monitoredBy ?sen)
+    makeSkolem(?m, 'RouteSensor', ?r, ?sen, ?swP, ?sw)
+    -> (?m rdf:type tb:RouteSensorCandidate) (?m tb:r ?r) (?m tb:sen ?sen)]
+
+[SwitchSet: (?sem tb:signal 'GO') (?r tb:entry ?sem) (?r tb:active 'true'^^xsd:boolean) (?r tb:follows ?swP)
+    (?swP tb:target ?sw) (?sw tb:currentPosition ?cp) (?swP tb:position ?p) notEqual(?p, ?cp)
+    makeSkolem(?m, 'SwitchSet', ?sem, ?r, ?swP, ?sw)
+    -> (?m rdf:type tb:SwitchSetMatch)]
+
+[ConnectedSegments: (?s1 tb:monitoredBy ?sen) (?s1 rdf:type tb:Segment)
+    (?s1 tb:connectsTo ?s2) (?s2 rdf:type tb:Segment) (?s2 tb:monitoredBy ?sen)
+    (?s2 tb:connectsTo ?s3) (?s3 rdf:type tb:Segment) (?s3 tb:monitoredBy ?sen)
+    (?s3 tb:connectsTo ?s4) (?s4 rdf:type tb:Segment) (?s4 tb:monitoredBy ?sen)
+    (?s4 tb:connectsTo ?s5) (?s5 rdf:type tb:Segment) (?s5 tb:monitoredBy ?sen)
+    (?s5 tb:connectsTo ?s6) (?s6 rdf:type tb:Segment) (?s6 tb:monitoredBy ?sen)
+    makeSkolem(?m, 'ConnectedSegments', ?sen, ?s1, ?s2, ?s3, ?s4, ?s5, ?s6)
+    -> (?m rdf:type tb:ConnectedSegmentsMatch)]
+
+[SemaphoreNeighbor: (?r1 tb:exit ?sem) (?r1 tb:requires ?sen1) (?te1 tb:monitoredBy ?sen1) (?te1 tb:connectsTo ?te2)
+    (?te2 tb:monitoredBy ?sen2) (?r2 tb:requires ?sen2) notEqual(?r2, ?r1)
+    makeSkolem(?m, 'SemaphoreNeighbor', ?sem, ?r1, ?r2, ?sen1, ?sen2, ?te1, ?te2)
+    -> (?m rdf:type tb:SemaphoreNeighborCandidate) (?m tb:r2 ?r2) (?m tb:sem ?sem)]

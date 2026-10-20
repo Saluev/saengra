@@ -6,11 +6,11 @@ Train Benchmark (2017 edition) comparing Saengra with Rete and TREAT engines.
 Optional settings:
     TRAIN_BENCHMARK_SIZES    model sizes, default "1,2,4,8,16"
                              (size 1 ≈ 2k elements, the model grows linearly)
-    TRAIN_BENCHMARK_ENGINES  default "saengra,rete-py,treat-py,clips,drools"
+    TRAIN_BENCHMARK_ENGINES  default "saengra,saengra-cypher,rete-py,treat-py,clips,drools,jena"
     TRAIN_BENCHMARK_RUNS     runs per engine and size, default 3 (median is reported)
     TRAIN_BENCHMARK_TIMEOUT  seconds per run, default 300; on timeout larger sizes are skipped
 
-CLIPS and Drools are run in Docker; the image is built automatically on the first run.
+CLIPS, Drools and Jena are run in Docker; the image is built automatically on the first run.
 See train_2017/workload.py for details on the workload and deviations from the original.
 """
 
@@ -49,7 +49,7 @@ def test_train_2017(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
         else:
             engines = [e for e in engines if not ENGINES[e].in_docker]
             with capsys.disabled():
-                print("Docker is not available, skipping CLIPS and Drools")
+                print("Docker is not available, skipping CLIPS, Drools and Jena")
 
     measurements: list[Measurement] = []
     for workload_name in ("inject", "repair"):

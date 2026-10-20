@@ -1,0 +1,21 @@
+package ttc;
+
+// Q2 as one rule per relationship, feeding the shared scorer (same as the reference engines).
+
+global ComponentsScorer scorer;
+
+rule Liker
+when
+    Edge(label == "likes", $u : from, $c : to)
+then
+    scorer.liker($c, $u);
+end
+
+rule Friends
+when
+    Edge(label == "likes", $u1 : from, $c : to)
+    Edge(label == "friends", from == $u1, $u2 : to)
+    Edge(label == "likes", from == $u2, to == $c)
+then
+    scorer.friends($c, $u1, $u2);
+end

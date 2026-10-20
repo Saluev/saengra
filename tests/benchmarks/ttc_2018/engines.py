@@ -21,6 +21,10 @@ def create_engine(name: str, query: str) -> TtcEngine:
             return SaengraAggregateEngine(query)
         case "rete-py" | "treat-py":
             return RelationalEngine(name, query)
+        case "clips":
+            from tests.benchmarks.ttc_2018.clips_engine import ClipsEngine
+
+            return ClipsEngine(query)
         case _:
             raise ValueError(f"unknown engine: {name}")
 
