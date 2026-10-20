@@ -252,8 +252,8 @@ public:
     void operator()(const AndExpr& expr) const {
         QuerySetDraft operand_qs{dest_.deps};
         MatchVisitor operand_visitor(query_, start_, operand_qs);
-        std::map<SubgraphDraft, int> subgraph_to_operand_idx;
-        for (auto i = 0; i < expr.operands.size(); ++i) {
+        std::vector<size_t> operand_idx;
+        for (size_t i = 0; i < expr.operands.size(); ++i) {
             const auto& operand = expr.operands[i];
             const auto size_before = operand_qs.subgraphs.size();
             boost::apply_visitor(operand_visitor, operand);
@@ -262,54 +262,54 @@ public:
                 // Nothing matched for one of the operands — quick exit.
                 return;
             }
-            for (auto j = size_before; j < size_after; ++j) {
-                subgraph_to_operand_idx.emplace(operand_qs.subgraphs[j], i);
-            }
+            operand_idx.resize(size_after, i);
         }
 
         // Now we emulate (all:) operator behavior, but without merging.
 
-        std::map<Refs, std::vector<SubgraphDraft>> subgraphs_by_refs;
+        std::map<Refs, std::vector<size_t>> subgraph_idxs_by_refs;
         std::set<Refs> all_refs;
-        for (auto& sg : operand_qs.subgraphs) {
-            all_refs.insert(sg.refs);
-            subgraphs_by_refs[sg.refs].push_back(std::move(sg));
+        for (size_t j = 0; j < operand_qs.subgraphs.size(); ++j) {
+            const auto& refs = operand_qs.subgraphs[j].refs;
+            all_refs.insert(refs);
+            subgraph_idxs_by_refs[refs].push_back(j);
         }
 
-        if (subgraphs_by_refs.size() == 1) {
-            for (const auto& [refs, sgs] : subgraphs_by_refs) {
-                // All matched subgraphs share exactly the same refs — means
-                // they are all join-compatible and should be returned.
-                dest_.subgraphs.insert(dest_.subgraphs.end(), sgs.begin(), sgs.end());
-                return;
-            }
+        if (subgraph_idxs_by_refs.size() == 1) {
+            // All matched subgraphs share exactly the same refs — means
+            // they are all join-compatible and should be returned.
+            std::move(operand_qs.subgraphs.begin(), operand_qs.subgraphs.end(), std::back_inserter(dest_.subgraphs));
+            return;
         }
 
         auto all_ref_names_and_values = collect_all_ref_names_and_values(all_refs);
         auto refs_domain = cartesian_product(all_ref_names_and_values.values);
-        std::map<Refs, std::vector<SubgraphDraft>> subgraphs_by_complete_refs;
-        for (const auto& [refs, subgraphs] : subgraphs_by_refs) {
+        std::map<Refs, std::vector<size_t>> subgraph_idxs_by_complete_refs;
+        for (const auto& [refs, idxs] : subgraph_idxs_by_refs) {
             for (const auto& complete_refs : refs_domain) {
                 if (!refs.can_be_lifted_to(complete_refs)) continue;
-                auto& dest = subgraphs_by_complete_refs[complete_refs];
-                dest.insert(dest.end(), subgraphs.begin(), subgraphs.end());
+                auto& dest = subgraph_idxs_by_complete_refs[complete_refs];
+                dest.insert(dest.end(), idxs.begin(), idxs.end());
             }
         }
 
-        for (auto& [refs, subgraphs] : subgraphs_by_complete_refs) {
+        for (const auto& [refs, idxs] : subgraph_idxs_by_complete_refs) {
             boost::dynamic_bitset<> operands;
             operands.resize(expr.operands.size());
-            for (auto& sg : subgraphs) {
-                operands.set(subgraph_to_operand_idx[sg]);
-                // In case we are going to return this subgraph, upgrade its refs to complete refs.
-                sg.refs = refs;
+            for (size_t j : idxs) {
+                operands.set(operand_idx[j]);
             }
             if (!operands.all()) {
                 // This merge would involve no subgraphs from one or more of the operands
                 // — means the subgraphs are not join-compatible and should not be returned.
                 continue;
             }
-            dest_.subgraphs.insert(dest_.subgraphs.end(), subgraphs.begin(), subgraphs.end());
+            for (size_t j : idxs) {
+                // A subgraph may be returned under several complete refs, so copy it.
+                SubgraphDraft sg = operand_qs.subgraphs[j];
+                sg.refs = refs;
+                dest_.subgraphs.push_back(std::move(sg));
+            }
         }
     }
 
