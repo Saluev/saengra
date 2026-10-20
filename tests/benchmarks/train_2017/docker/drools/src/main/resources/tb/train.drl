@@ -1,0 +1,60 @@
+package tb;
+
+// Train Benchmark queries as Drools live queries.
+// Type patterns implied by the metamodel are omitted, same as in the other relational engines.
+
+query PosLength
+    IntAttr(name == "length", $s : id, value <= 0)
+end
+
+query SwitchMonitored
+    Node(type == "Switch", $sw : id)
+    not Edge(label == "monitoredBy", from == $sw)
+end
+
+query RouteSensor
+    Edge(label == "follows", $r : from, $swP : to)
+    Edge(label == "target", from == $swP, $sw : to)
+    Edge(label == "monitoredBy", from == $sw, $sen : to)
+    not Edge(label == "requires", from == $r, to == $sen)
+end
+
+query SwitchSet
+    StrAttr(name == "signal", value == "GO", $sem : id)
+    Edge(label == "entry", to == $sem, $r : from)
+    BoolAttr(name == "active", id == $r, value == true)
+    Edge(label == "follows", from == $r, $swP : to)
+    Edge(label == "target", from == $swP, $sw : to)
+    StrAttr(name == "currentPosition", id == $sw, $cp : value)
+    StrAttr(name == "position", id == $swP, value != $cp)
+end
+
+query ConnectedSegments
+    Edge(label == "monitoredBy", $s1 : from, $sen : to)
+    Node(type == "Segment", id == $s1)
+    Edge(label == "connectsTo", from == $s1, $s2 : to)
+    Node(type == "Segment", id == $s2)
+    Edge(label == "monitoredBy", from == $s2, to == $sen)
+    Edge(label == "connectsTo", from == $s2, $s3 : to)
+    Node(type == "Segment", id == $s3)
+    Edge(label == "monitoredBy", from == $s3, to == $sen)
+    Edge(label == "connectsTo", from == $s3, $s4 : to)
+    Node(type == "Segment", id == $s4)
+    Edge(label == "monitoredBy", from == $s4, to == $sen)
+    Edge(label == "connectsTo", from == $s4, $s5 : to)
+    Node(type == "Segment", id == $s5)
+    Edge(label == "monitoredBy", from == $s5, to == $sen)
+    Edge(label == "connectsTo", from == $s5, $s6 : to)
+    Node(type == "Segment", id == $s6)
+    Edge(label == "monitoredBy", from == $s6, to == $sen)
+end
+
+query SemaphoreNeighbor
+    Edge(label == "exit", $r1 : from, $sem : to)
+    Edge(label == "requires", from == $r1, $sen1 : to)
+    Edge(label == "monitoredBy", $te1 : from, to == $sen1)
+    Edge(label == "connectsTo", from == $te1, $te2 : to)
+    Edge(label == "monitoredBy", from == $te2, $sen2 : to)
+    Edge(label == "requires", $r2 : from, to == $sen2, from != $r1)
+    not Edge(label == "entry", from == $r2, to == $sem)
+end
