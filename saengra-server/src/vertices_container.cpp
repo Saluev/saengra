@@ -1,7 +1,10 @@
 #include "vertices_container.h"
-#include "utility.h"
+#include "absl/container/flat_hash_map.h"
 
 namespace saengra {
+
+// Undo logs larger than this are freed on commit/rollback instead of being kept for reuse.
+static constexpr size_t kMaxRetainedLogCapacity = 4096;
 
 MutableVerticesContainer::MutableVerticesContainer() {}
 
@@ -10,27 +13,31 @@ VertexTypeName MutableVerticesContainer::internalize_type_name(const std::string
     return VertexTypeName(*it->type_name);
 }
 
+void MutableVerticesContainer::set_present(VertexID vertex_id, bool is_present) {
+    vertex_id->present = is_present;
+    if (is_present) {
+        present.insert(vertex_id);
+        vertices_by_type_name[vertex_id->type_name].insert(vertex_id);
+    } else {
+        present.erase(vertex_id);
+        auto type_it = vertices_by_type_name.find(vertex_id->type_name);
+        if (type_it != vertices_by_type_name.end()) {
+            type_it->second.erase(vertex_id);
+        }
+    }
+}
+
 void MutableVerticesContainer::add_vertex(const VertexData& v) {
-    VertexID vertex_id;
     auto it = vertex_id_by_vertex.find(v);
     if (it == vertex_id_by_vertex.end()) {
-        auto [it, _] = vertex_id_by_vertex.emplace(v, std::make_unique<StoredVertex>(v.type_name, v.value, false));
-        vertex_id = it->second.get();
-    } else {
-        vertex_id = it->second.get();
+        it = vertex_id_by_vertex.emplace(v, std::make_unique<StoredVertex>(v.type_name, v.value, false)).first;
     }
+    VertexID vertex_id = it->second.get();
     if (vertex_id->present) {
         return;
     }
-    present.insert(vertex_id);
-    vertex_id->present = true;
-    auto just_removed_it = just_removed.find(vertex_id);
-    if (just_removed_it != just_removed.end()) {
-        just_removed.erase(just_removed_it);
-    } else {
-        just_added.insert(vertex_id);
-    }
-    vertices_by_type_name[v.type_name].insert(vertex_id);
+    set_present(vertex_id, true);
+    log_.push_back({vertex_id, true});
 }
 
 std::optional<VertexID> MutableVerticesContainer::get_vertex_id(const VertexData& v) const {
@@ -50,99 +57,61 @@ void MutableVerticesContainer::discard_vertex(const VertexData& v) {
     if (!vertex_id->present) {
         return;
     }
-    present.erase(vertex_id);
-    vertex_id->present = false;
-    auto just_added_it = just_added.find(vertex_id);
-    if (just_added_it != just_added.end()) {
-        just_added.erase(just_added_it);
-    } else {
-        just_removed.insert(vertex_id);
-    }
-    auto type_it = vertices_by_type_name.find(v.type_name);
-    if (type_it != vertices_by_type_name.end()) {
-        type_it->second.erase(vertex_id);
-    }
-}
-
-void add_all(VertexIDSet& to, const VertexIDSet& from) {
-    to.insert(from.begin(), from.end());
-}
-
-void add_except(VertexIDSet& to, const VertexIDSet& from, const VertexIDSet& except) {
-    for (const auto& id : from) {
-        if (!except.contains(id)) {
-            to.insert(id);
-        }
-    }
-}
-
-void add_intersection(VertexIDSet& to, const VertexIDSet& from1, const VertexIDSet& from2) {
-    if (from2.size() < from1.size()) {
-        add_intersection(to, from2, from1);
-        return;
-    }
-
-    for (const auto& id : from1) {
-        if (from2.contains(id)) {
-            to.insert(id);
-        }
-    }
-}
-
-void remove_all(VertexIDSet& from, const VertexIDSet& what) {
-    for (const auto& id : what) {
-        from.erase(id);
-    }
+    set_present(vertex_id, false);
+    log_.push_back({vertex_id, false});
 }
 
 void MutableVerticesContainer::apply() {
-    add_except(added, just_added, committed);
-    remove_all(added, just_removed);
-    add_intersection(removed, just_removed, committed);
-    remove_all(removed, just_added);
-    clear_and_shrink(just_added);
-    clear_and_shrink(just_removed);
+    applied_ = log_.size();
 }
 
 void MutableVerticesContainer::commit() {
-    add_all(committed, added);
-    remove_all(committed, removed);
-    clear_and_shrink(added);
-    clear_and_shrink(removed);
+    log_.erase(log_.begin(), log_.begin() + applied_);
+    applied_ = 0;
+    if (log_.empty() && log_.capacity() > kMaxRetainedLogCapacity) {
+        std::vector<Change>().swap(log_);
+    }
 
-    // TODO clear VertexData <-> VertexID mappings for `removed`
+    // TODO clear VertexData <-> VertexID mappings for removed vertices
     //      (and take care of IncrementalMatchers holding pointers to the now-removed vertices?)
 }
 
 void MutableVerticesContainer::rollback() {
-    VertexIDSet to_add;
-    add_except(to_add, removed, just_added);
-    add_all(to_add, just_removed);
-
-    VertexIDSet to_remove;
-    add_except(to_remove, added, just_removed);
-    add_all(to_remove, just_added);
-
-    clear_and_shrink(added);
-    clear_and_shrink(removed);
-    clear_and_shrink(just_added);
-    clear_and_shrink(just_removed);
-
-    add_all(present, to_add);
-    for (auto vertex_id : to_add) {
-        vertex_id->present = true;
+    for (auto it = log_.rbegin(); it != log_.rend(); ++it) {
+        set_present(it->vertex, !it->added);
     }
-    remove_all(present, to_remove);
-    for (auto vertex_id : to_remove) {
-        vertex_id->present = false;
+    log_.clear();
+    applied_ = 0;
+    if (log_.capacity() > kMaxRetainedLogCapacity) {
+        std::vector<Change>().swap(log_);
     }
+}
 
-    for (const auto& vertex_id : to_add) {
-        vertices_by_type_name[vertex_id->type_name].insert(vertex_id);
+std::vector<VertexID> MutableVerticesContainer::iter_just_changed(bool added) const {
+    // Only actual changes are logged, so changes of a particular vertex alternate between
+    // adding and removing; the first and the last of them define the net change.
+    absl::flat_hash_map<VertexID, std::pair<bool, bool>> first_and_last;
+    for (auto it = log_.begin() + applied_; it != log_.end(); ++it) {
+        auto [entry, inserted] = first_and_last.try_emplace(it->vertex, it->added, it->added);
+        if (!inserted) {
+            entry->second.second = it->added;
+        }
     }
-    for (const auto& vertex_id : to_remove) {
-        vertices_by_type_name[vertex_id->type_name].erase(vertex_id);
+    std::vector<VertexID> result;
+    for (const auto& [vertex_id, first_and_last_added] : first_and_last) {
+        if (first_and_last_added.first == added && first_and_last_added.second == added) {
+            result.push_back(vertex_id);
+        }
     }
+    return result;
+}
+
+std::vector<VertexID> MutableVerticesContainer::iter_just_added() const {
+    return iter_just_changed(true);
+}
+
+std::vector<VertexID> MutableVerticesContainer::iter_just_removed() const {
+    return iter_just_changed(false);
 }
 
 VertexIDRange MutableVerticesContainer::iter_present() const {
@@ -156,14 +125,6 @@ VertexIDRange MutableVerticesContainer::iter_present_by_type_name(const VertexTy
         return it->second;
     }
     return empty_set;
-}
-
-VertexIDRange MutableVerticesContainer::iter_just_added() const {
-    return just_added;
-}
-
-VertexIDRange MutableVerticesContainer::iter_just_removed() const {
-    return just_removed;
 }
 
 }

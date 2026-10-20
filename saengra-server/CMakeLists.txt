@@ -77,6 +77,7 @@ target_link_libraries(saengra_core PUBLIC
     protobuf::libprotobuf
     absl::log_internal_check_op
     absl::log_internal_message
+    absl::raw_hash_set
     spdlog::spdlog
 )
 

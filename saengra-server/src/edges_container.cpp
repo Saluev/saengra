@@ -1,558 +1,151 @@
 #include "edges_container.h"
-#include "utility.h"
-#include <algorithm>
-#include <unordered_set>
 #include <utility>
 
 namespace saengra {
 
-// ============================================================================
-// UniLeaf implementation
-// ============================================================================
-
-inline void push_edge(std::vector<Edge>& dest, VertexID from, const EdgeLabel& label, VertexID to, bool is_inverse) {
-    if (is_inverse) dest.emplace_back(to, label, from);
-    else            dest.emplace_back(from, label, to);
-}
-
-void UniLeaf::iter_present(std::vector<VertexID>& dest) const {
-    if (just_replaced_) {
-        dest.push_back(*just_replaced_);
-    }
-}
-
-void UniLeaf::iter_just_added(std::vector<VertexID>& dest) const {
-    if (just_replaced_ && just_replaced_ != replaced_) dest.push_back(*just_replaced_);
-}
-
-void UniLeaf::iter_just_removed(std::vector<VertexID>& dest) const {
-    if (replaced_ && just_replaced_ != replaced_) dest.push_back(*replaced_);
-}
-
-void UniLeaf::iter_present(std::vector<std::pair<EdgeLabel, VertexID>>& dest) const {
-    if (just_replaced_) {
-        dest.emplace_back(label_, *just_replaced_);
-    }
-}
-
-void UniLeaf::iter_just_added(std::vector<std::pair<EdgeLabel, VertexID>>& dest) const {
-    if (just_replaced_ && just_replaced_ != replaced_) dest.emplace_back(label_, *just_replaced_);
-}
-
-void UniLeaf::iter_just_removed(std::vector<std::pair<EdgeLabel, VertexID>>& dest) const {
-    if (replaced_ && just_replaced_ != replaced_) dest.emplace_back(label_, *replaced_);
-}
-
-void UniLeaf::iter_present(std::vector<Edge>& dest) const {
-    if (just_replaced_) {
-        push_edge(dest, from_, label_, *just_replaced_, is_inverse_);
-    }
-}
-
-void UniLeaf::iter_just_added(std::vector<Edge>& dest) const {
-    if (just_replaced_ && just_replaced_ != replaced_) push_edge(dest, from_, label_, *just_replaced_, is_inverse_);
-}
-
-void UniLeaf::iter_just_removed(std::vector<Edge>& dest) const {
-    if (replaced_ && just_replaced_ != replaced_) push_edge(dest, from_, label_, *replaced_, is_inverse_);
-}
-
-void UniLeaf::convert_to_multi_leaf(Leaf& self) {
-    MultiLeaf multi_leaf(from_, label_, is_inverse_);
-
-    auto& tx = *multi_leaf.tx_;
-    auto add_to_multi_leaf = [&multi_leaf](VertexID to) {
-        size_t idx = multi_leaf.index_.size();
-        multi_leaf.index_[to] = idx;
-        return idx;
-    };
-
-    const size_t committed_idx = committed_ ? add_to_multi_leaf(*committed_) : 0;
-    const size_t replaced_idx =
-        replaced_ == committed_ ? committed_idx :
-        (replaced_ ? add_to_multi_leaf(*replaced_) : 0);
-    const size_t just_replaced_idx =
-        just_replaced_ == replaced_ ? replaced_idx :
-        (just_replaced_ == committed_ ? committed_idx :
-        (just_replaced_ ? add_to_multi_leaf(*just_replaced_) : 0));
-
-    const auto index_size = multi_leaf.index_.size();
-    multi_leaf.present_.resize(index_size);
-    tx.committed_.resize(index_size);
-    tx.added_.resize(index_size);
-    tx.removed_.resize(index_size);
-    tx.just_added_.resize(index_size);
-    tx.just_removed_.resize(index_size);
-
-    if (committed_) {
-        tx.committed_[committed_idx] = true;
-    }
-    if (replaced_ && replaced_ != committed_) {
-        tx.added_[replaced_idx] = true;
-    }
-    if (committed_ && replaced_ != committed_) {
-        tx.removed_[committed_idx] = true;
-    }
-    if (just_replaced_ && just_replaced_ != replaced_) {
-        tx.just_added_[just_replaced_idx] = true;
-    }
-    if (replaced_ && just_replaced_ != replaced_) {
-        tx.just_removed_[replaced_idx] = true;
-    }
-    if (just_replaced_) {
-        multi_leaf.present_[just_replaced_idx] = true;
-    }
-
-    self = std::move(multi_leaf);
-}
-
-void UniLeaf::apply(Leaf& self) {
-    replaced_ = just_replaced_;
-}
-
-void UniLeaf::commit(Leaf& self) {
-    committed_ = replaced_;
-}
-
-void UniLeaf::rollback() {
-    replaced_ = just_replaced_ = committed_;
-}
-
-JustAdded UniLeaf::add_to_leaf(VertexID to, Leaf& self) {
-    if (just_replaced_) {
-        convert_to_multi_leaf(self);
-        return boost::get<MultiLeaf>(self).add_to_leaf(to, self);
-    }
-    just_replaced_ = to;
-    return just_replaced_ != replaced_;
-}
-
-JustRemoved UniLeaf::discard_from_leaf(VertexID to, Leaf& self) {
-    if (to != just_replaced_) return false;
-    just_replaced_ = std::nullopt;
-    return replaced_;
-}
-
-JustRemoved UniLeaf::remove_all_from_leaf(Leaf& self) {
-    just_replaced_ = std::nullopt;
-    return replaced_;
-}
+// Undo logs larger than this are freed on commit/rollback instead of being kept for reuse.
+static constexpr size_t kMaxRetainedLogCapacity = 4096;
 
 // ============================================================================
-// MultiLeaf implementation
+// Leaves
 // ============================================================================
 
-void MultiLeaf::iter_bitmask(const boost::dynamic_bitset<>& bitmask, std::vector<VertexID>& result) const {
-    if (bitmask.none()) {
-        return;
-    }
-    for (const auto& [to, idx] : index_) {
-        if (idx < bitmask.size() && bitmask[idx]) {
-            result.push_back(to);
-        }
-    }
-}
-
-void MultiLeaf::iter_bitmask(const boost::dynamic_bitset<>& bitmask, std::vector<std::pair<EdgeLabel, VertexID>>& result) const {
-    if (bitmask.none()) {
-        return;
-    }
-    for (const auto& [to, idx] : index_) {
-        if (idx < bitmask.size() && bitmask[idx]) {
-            result.emplace_back(label_, to);
-        }
-    }
-}
-
-void MultiLeaf::iter_bitmask(const boost::dynamic_bitset<>& bitmask, std::vector<Edge>& result) const {
-    if (bitmask.none()) {
-        return;
-    }
-    for (const auto& [to, idx] : index_) {
-        if (idx < bitmask.size() && bitmask[idx]) {
-            if (is_inverse_) {
-                result.emplace_back(to, label_, from_);
-            } else {
-                result.emplace_back(from_, label_, to);
-            }
-        }
-    }
-}
-
-void MultiLeaf::iter_present(std::vector<VertexID>& dest) const {
-    return iter_bitmask(present_, dest);
-}
-
-void MultiLeaf::iter_just_added(std::vector<VertexID>& dest) const {
-    return iter_bitmask(tx_->just_added_, dest);
-}
-
-void MultiLeaf::iter_just_removed(std::vector<VertexID>& dest) const {
-    return iter_bitmask(tx_->just_removed_, dest);
-}
-
-void MultiLeaf::iter_present(std::vector<std::pair<EdgeLabel, VertexID>>& dest) const {
-    return iter_bitmask(present_, dest);
-}
-
-void MultiLeaf::iter_just_added(std::vector<std::pair<EdgeLabel, VertexID>>& dest) const {
-    return iter_bitmask(tx_->just_added_, dest);
-}
-
-void MultiLeaf::iter_just_removed(std::vector<std::pair<EdgeLabel, VertexID>>& dest) const {
-    return iter_bitmask(tx_->just_removed_, dest);
-}
-
-void MultiLeaf::iter_present(std::vector<Edge>& dest) const {
-    return iter_bitmask(present_, dest);
-}
-
-void MultiLeaf::iter_just_added(std::vector<Edge>& dest) const {
-    return iter_bitmask(tx_->just_added_, dest);
-}
-
-void MultiLeaf::iter_just_removed(std::vector<Edge>& dest) const {
-    return iter_bitmask(tx_->just_removed_, dest);
-}
-
-void MultiLeaf::apply(Leaf& self) {
-    auto& tx = *tx_;
-    boost::dynamic_bitset<> temp = tx.just_added_ & ~tx.committed_;
-    tx.added_ ^= temp;
-    tx.added_ &= ~tx.just_removed_;
-    tx.removed_ |= (tx.just_removed_ & tx.committed_);
-    tx.removed_ &= ~tx.just_added_;
-    tx.just_added_.reset();
-    tx.just_removed_.reset();
-}
-
-void MultiLeaf::commit(Leaf& self) {
-    auto& tx = *tx_;
-    tx.committed_ |= tx.added_;
-    tx.committed_ &= ~tx.removed_;
-    tx.added_.reset();
-    tx.removed_.reset();
-    compactify_after_commit();
-}
-
-void MultiLeaf::rollback() {
-    auto& tx = *tx_;
-    tx.added_.reset();
-    tx.removed_.reset();
-    tx.just_added_.reset();
-    tx.just_removed_.reset();
-    present_ = tx.committed_;
-    compactify_after_commit();
-}
-
-void MultiLeaf::compactify_after_commit() {
-    auto& tx = *tx_;
-    size_t useful_space = present_.count();
-    if (useful_space == 0) {
-        index_.clear();
-        // don't care about bitmasks, we'll reuse them
-        return;
-    }
-
-    size_t wasted_space = index_.size() - useful_space;
-    if (wasted_space < 8 || wasted_space < useful_space) {
-        return;
-    }
-
-    // Rebuild index with compacted indices
-    LeafIndex new_index;
-    size_t new_idx = 0;
-
-    for (const auto& [to, old_idx] : index_) {
-        if (old_idx < present_.size() && present_[old_idx]) {
-            new_index[to] = new_idx++;
-        }
-    }
-
-    index_ = std::move(new_index);
-
-    // Rebuild bitmasks
-    size_t new_size = useful_space;
-    present_.resize(new_size);
-    tx.committed_.resize(new_size);
-    tx.added_.resize(new_size);
-    tx.removed_.resize(new_size);
-    tx.just_added_.resize(new_size);
-    tx.just_removed_.resize(new_size);
-    present_.set();      // Set all bits to 1
-    tx.committed_.set(); // Set all bits to 1
-    // other bitmasks are already set to 0
-}
-
-JustAdded MultiLeaf::add_to_leaf(VertexID to, Leaf& self) {
-    auto& tx = *tx_;
-    auto it = index_.find(to);
-    size_t idx;
-    if (it == index_.end()) {
-        idx = index_.size();
-        index_[to] = idx;
-        present_.resize(idx + 1);
-        tx.committed_.resize(idx + 1);
-        tx.added_.resize(idx + 1);
-        tx.removed_.resize(idx + 1);
-        tx.just_added_.resize(idx + 1);
-        tx.just_removed_.resize(idx + 1);
-    } else {
-        idx = it->second;
-    }
-    if (present_[idx]) {
+bool UniLeaf::add(VertexID to, Leaf& self) {
+    if (to_ == to) {
         return false;
     }
-    present_[idx] = true;
-    if (tx.just_removed_[idx]) {
-        tx.just_removed_[idx] = false;
-        return false;
-    } else {
-        tx.just_added_[idx] = true;
+    if (to_ == nullptr) {
+        to_ = to;
         return true;
     }
+    const VertexID existing = to_;
+    self = MultiLeaf(existing, to);  // destroys *this
+    return true;
 }
 
-JustRemoved MultiLeaf::discard_from_leaf(VertexID to, Leaf& self) {
-    auto& tx = *tx_;
-    auto it = index_.find(to);
-    if (it == index_.end()) {
+bool UniLeaf::remove(VertexID to) {
+    if (to_ != to) {
         return false;
     }
-    size_t idx = it->second;
-    if (!present_[idx]) {
-        return false;
-    }
-    present_[idx] = false;
-    if (tx.just_added_[idx]) {
-        tx.just_added_[idx] = false;
-        return false;
-    } else {
-        tx.just_removed_[idx] = true;
-        return true;
-    }
+    to_ = nullptr;
+    return true;
 }
 
-JustRemoved MultiLeaf::remove_all_from_leaf(Leaf& self) {
-    auto& tx = *tx_;
-    tx.just_removed_ |= (present_ & ~tx.just_added_);
-    present_.reset();
-    tx.just_added_.reset();
-    return tx.just_removed_.any();
+bool MultiLeaf::add(VertexID to, Leaf& self) {
+    return targets_.insert(to).second;
+}
+
+bool MultiLeaf::remove(VertexID to) {
+    return targets_.erase(to) > 0;
 }
 
 // ============================================================================
-// Branch implementation
+// Branch
 // ============================================================================
 
 Branch::Branch(VertexID from, bool is_inverse) : from_(from), is_inverse_(is_inverse) {}
 
-void Branch::apply() {
-    for (auto& [label, leaf] : leaves_) {
-        if (auto* l = boost::get<UniLeaf>(&leaf)) l->apply(leaf);
-        else boost::get<MultiLeaf>(leaf).apply(leaf);
-    }
+void Branch::push_edge(std::vector<Edge>& dest, const EdgeLabel& label, VertexID to) const {
+    if (is_inverse_) dest.emplace_back(to, label, from_);
+    else             dest.emplace_back(from_, label, to);
 }
 
-void Branch::commit() {
-    // Iterate with copy to allow safe deletion
-    std::vector<EdgeLabel> to_delete;
-    for (auto& [label, leaf] : leaves_) {
-        if (auto* l = boost::get<UniLeaf>(&leaf)) l->commit(leaf);
-        else boost::get<MultiLeaf>(leaf).commit(leaf);
-        if (boost::apply_visitor([](auto& l) { return l.is_present_empty(); }, leaf)) {
-            to_delete.push_back(label);
-        }
-    }
-    for (const auto& label : to_delete) {
-        leaves_.erase(label);
-    }
+bool Branch::add(const EdgeLabel& label, VertexID to) {
+    auto [it, inserted] = leaves_.try_emplace(label, UniLeaf());
+    Leaf& leaf = it->second;
+    if (auto* l = boost::get<UniLeaf>(&leaf)) return l->add(to, leaf);
+    return boost::get<MultiLeaf>(leaf).add(to, leaf);
 }
 
-void Branch::rollback() {
-    std::vector<EdgeLabel> to_delete;
-    for (auto& [label, leaf] : leaves_) {
-        if (boost::apply_visitor([](auto& l) { return l.is_committed_empty(); }, leaf)) {
-            to_delete.push_back(label);
-        } else {
-            boost::apply_visitor([](auto& l) { l.rollback(); }, leaf);
-        }
+bool Branch::remove(const EdgeLabel& label, VertexID to) {
+    auto it = leaves_.find(label);
+    if (it == leaves_.end()) {
+        return false;
     }
-    for (const auto& label : to_delete) {
-        leaves_.erase(label);
+    const bool removed = boost::apply_visitor([to](auto& l) { return l.remove(to); }, it->second);
+    if (boost::apply_visitor([](const auto& l) { return l.is_empty(); }, it->second)) {
+        leaves_.erase(it);
     }
+    return removed;
 }
 
-std::vector<EdgeLabel> Branch::iter_present_labels() const {
-    std::vector<EdgeLabel> result;
-    for (const auto& [label, leaf] : leaves_) {
-        if (!boost::apply_visitor([](const auto& l) { return l.is_present_empty(); }, leaf)) {
-            result.push_back(label);
-        }
-    }
-    return result;
-}
-
-void Branch::iter_present_and_remove(std::vector<std::pair<EdgeLabel, VertexID>>& result) {
-    for (auto& [label, leaf] : leaves_) {
-        boost::apply_visitor([&result](auto& l) { l.iter_present(result); }, leaf);
-        if (auto* l = boost::get<UniLeaf>(&leaf)) l->remove_all_from_leaf(leaf);
-        else boost::get<MultiLeaf>(leaf).remove_all_from_leaf(leaf);
-    }
-}
-
-void Branch::iter_present(std::vector<std::pair<EdgeLabel, VertexID>>& result) const {
-    for (const auto& [label, leaf] : leaves_) {
-        boost::apply_visitor([&result](auto& l) { l.iter_present(result); }, leaf);
-    }
-}
-
-void Branch::iter_just_added(std::vector<std::pair<EdgeLabel, VertexID>>& result) const {
-    for (const auto& [label, leaf] : leaves_) {
-        boost::apply_visitor([&result](auto& l) { l.iter_just_added(result); }, leaf);
-    }
-}
-
-void Branch::iter_just_removed(std::vector<std::pair<EdgeLabel, VertexID>>& result) const {
-    for (const auto& [label, leaf] : leaves_) {
-        boost::apply_visitor([&result](auto& l) { l.iter_just_removed(result); }, leaf);
-    }
-}
-
-void Branch::iter_present_via_label(const EdgeLabel& label, std::vector<std::pair<EdgeLabel, VertexID>>& result) const {
+void Branch::remove_all_via_label(const EdgeLabel& label, std::vector<VertexID>& removed) {
     auto it = leaves_.find(label);
     if (it == leaves_.end()) {
         return;
     }
-    boost::apply_visitor([&result](const auto& l) { l.iter_present(result); }, it->second);
+    boost::apply_visitor([&removed](const auto& l) { l.for_each([&removed](VertexID to) { removed.push_back(to); }); }, it->second);
+    leaves_.erase(it);
 }
 
-void Branch::iter_present_and_remove(std::vector<Edge>& result) {
-    for (auto& [label, leaf] : leaves_) {
-        boost::apply_visitor([&result](auto& l) { l.iter_present(result); }, leaf);
-        if (auto* l = boost::get<UniLeaf>(&leaf)) l->remove_all_from_leaf(leaf);
-        else boost::get<MultiLeaf>(leaf).remove_all_from_leaf(leaf);
-    }
-}
-
-
-void Branch::iter_present(std::vector<Edge>& result) const {
+void Branch::remove_all(std::vector<std::pair<EdgeLabel, VertexID>>& removed) {
     for (const auto& [label, leaf] : leaves_) {
-        boost::apply_visitor([&result](auto& l) { l.iter_present(result); }, leaf);
+        boost::apply_visitor([&removed, &label](const auto& l) {
+            l.for_each([&removed, &label](VertexID to) { removed.emplace_back(label, to); });
+        }, leaf);
     }
+    leaves_.clear();
 }
 
-void Branch::iter_just_added(std::vector<Edge>& result) const {
+void Branch::iter_present(std::vector<Edge>& dest) const {
     for (const auto& [label, leaf] : leaves_) {
-        boost::apply_visitor([&result](auto& l) { l.iter_just_added(result); }, leaf);
+        boost::apply_visitor([this, &dest, &label](const auto& l) {
+            l.for_each([this, &dest, &label](VertexID to) { push_edge(dest, label, to); });
+        }, leaf);
     }
 }
 
-void Branch::iter_just_removed(std::vector<Edge>& result) const {
-    for (const auto& [label, leaf] : leaves_) {
-        boost::apply_visitor([&result](auto& l) { l.iter_just_removed(result); }, leaf);
-    }
-}
-
-void Branch::iter_present_via_label(const EdgeLabel& label, std::vector<Edge>& result) const {
+void Branch::iter_present_via_label(const EdgeLabel& label, std::vector<Edge>& dest) const {
     auto it = leaves_.find(label);
     if (it == leaves_.end()) {
         return;
     }
-    boost::apply_visitor([&result](const auto& l) { l.iter_present(result); }, it->second);
+    boost::apply_visitor([this, &dest, &label](const auto& l) {
+        l.for_each([this, &dest, &label](VertexID to) { push_edge(dest, label, to); });
+    }, it->second);
 }
 
 // ============================================================================
-// Trunk implementation
+// Trunk
 // ============================================================================
 
-Trunk::Trunk(bool is_inverse) : is_inverse_(is_inverse), inverse_(nullptr) {}
+Trunk::Trunk(bool is_inverse) : is_inverse_(is_inverse) {}
 
-void Trunk::apply() {
-    // Merge have_just_added and have_just_removed into single set to iterate
-    std::unordered_set<VertexID> vertex_ids;
-    for (const auto& [from, _] : have_just_added_) {
-        vertex_ids.insert(from);
-    }
-    for (const auto& [from, _] : have_just_removed_) {
-        vertex_ids.insert(from);
-    }
-
-    // Apply to all affected branches
-    for (VertexID from : vertex_ids) {
-        auto it = branches_.find(from);
-        if (it != branches_.end()) {
-            it->second.apply();
-        }
-    }
-
-    // Update have_added and have_removed
-    have_added_.insert(have_just_added_.begin(), have_just_added_.end());
-    have_removed_.insert(have_just_removed_.begin(), have_just_removed_.end());
-    clear_and_shrink(have_just_added_);
-    clear_and_shrink(have_just_removed_);
+bool Trunk::add(VertexID from, const EdgeLabel& label, VertexID to) {
+    auto [it, inserted] = branches_.try_emplace(from, from, is_inverse_);
+    return it->second.add(label, to);
 }
 
-void Trunk::commit() {
-    // Merge have_added and have_removed
-    std::unordered_set<VertexID> vertex_ids;
-    for (const auto& [from, _] : have_added_) {
-        vertex_ids.insert(from);
+bool Trunk::remove(VertexID from, const EdgeLabel& label, VertexID to) {
+    auto it = branches_.find(from);
+    if (it == branches_.end()) {
+        return false;
     }
-    for (const auto& [from, _] : have_removed_) {
-        vertex_ids.insert(from);
+    const bool removed = it->second.remove(label, to);
+    if (it->second.is_empty()) {
+        branches_.erase(it);
     }
-
-    // Commit all affected branches
-    std::vector<VertexID> to_delete;
-    for (VertexID from : vertex_ids) {
-        auto it = branches_.find(from);
-        if (it != branches_.end()) {
-            it->second.commit();
-            if (it->second.is_empty()) {
-                to_delete.push_back(from);
-            }
-        }
-    }
-
-    // Delete empty branches
-    for (VertexID from : to_delete) {
-        branches_.erase(from);
-    }
-
-    clear_and_shrink(have_added_);
-    clear_and_shrink(have_removed_);
+    return removed;
 }
 
-void Trunk::rollback() {
-    std::vector<VertexID> to_delete;
-    for (auto& [from, branch] : branches_) {
-        branch.rollback();
-        if (branch.is_empty()) {
-            to_delete.push_back(from);
-        }
+void Trunk::remove_all_via_label(VertexID from, const EdgeLabel& label, std::vector<VertexID>& removed) {
+    auto it = branches_.find(from);
+    if (it == branches_.end()) {
+        return;
     }
-
-    for (VertexID from : to_delete) {
-        branches_.erase(from);
-    }
-
-    clear_and_shrink(have_added_);
-    clear_and_shrink(have_removed_);
-    clear_and_shrink(have_just_added_);
-    clear_and_shrink(have_just_removed_);
-}
-
-void Trunk::iter_just_added(std::vector<Edge>& result) const {
-    for (const auto& [from, branch] : have_just_added_) {
-        branch->iter_just_added(result);
+    it->second.remove_all_via_label(label, removed);
+    if (it->second.is_empty()) {
+        branches_.erase(it);
     }
 }
 
-void Trunk::iter_just_removed(std::vector<Edge>& result) const {
-    for (const auto& [from, branch] : have_just_removed_) {
-        branch->iter_just_removed(result);
+void Trunk::remove_all(VertexID from, std::vector<std::pair<EdgeLabel, VertexID>>& removed) {
+    auto it = branches_.find(from);
+    if (it == branches_.end()) {
+        return;
     }
+    it->second.remove_all(removed);
+    branches_.erase(it);
 }
 
 void Trunk::iter_present(std::vector<Edge>& result) const {
@@ -569,14 +162,6 @@ void Trunk::iter_present_via_labels(const std::vector<EdgeLabel>& labels, std::v
     }
 }
 
-Branch* Trunk::get_branch(VertexID from) {
-    auto it = branches_.find(from);
-    if (it == branches_.end()) {
-        return nullptr;
-    }
-    return &it->second;
-}
-
 const Branch* Trunk::get_branch(VertexID from) const {
     auto it = branches_.find(from);
     if (it == branches_.end()) {
@@ -589,29 +174,116 @@ const Branch* Trunk::get_branch(VertexID from) const {
 // MutableEdgesContainer implementation
 // ============================================================================
 
-MutableEdgesContainer::MutableEdgesContainer(): forward_(false), inverse_(true) {
-    forward_.set_inverse(&inverse_);
-    inverse_.set_inverse(&forward_);
-}
+MutableEdgesContainer::MutableEdgesContainer(): forward_(false), inverse_(true) {}
 
 EdgeLabel MutableEdgesContainer::internalize_label(const std::string& label) {
     auto [it, inserted] = labels_.emplace(std::make_unique<std::string>(label));
     return EdgeLabel(*it->label_);
 }
 
+bool MutableEdgesContainer::insert(VertexID from, const EdgeLabel& label, VertexID to) {
+    if (!forward_.add(from, label, to)) {
+        return false;
+    }
+    inverse_.add(to, label, from);
+    return true;
+}
+
+bool MutableEdgesContainer::erase(VertexID from, const EdgeLabel& label, VertexID to) {
+    if (!forward_.remove(from, label, to)) {
+        return false;
+    }
+    inverse_.remove(to, label, from);
+    return true;
+}
+
+void MutableEdgesContainer::add_edge(VertexID from, const EdgeLabel& label, VertexID to) {
+    if (insert(from, label, to)) {
+        log_.push_back({Edge{from, label, to}, true});
+    }
+}
+
+void MutableEdgesContainer::remove_edge(VertexID from, const EdgeLabel& label, VertexID to) {
+    if (erase(from, label, to)) {
+        log_.push_back({Edge{from, label, to}, false});
+    }
+}
+
+void MutableEdgesContainer::remove_edges_from_via_label(VertexID from, const EdgeLabel& label) {
+    std::vector<VertexID> removed;
+    forward_.remove_all_via_label(from, label, removed);
+    for (VertexID to : removed) {
+        inverse_.remove(to, label, from);
+        log_.push_back({Edge{from, label, to}, false});
+    }
+}
+
+void MutableEdgesContainer::remove_edges_of_vertex(VertexID vertex) {
+    std::vector<std::pair<EdgeLabel, VertexID>> removed;
+    forward_.remove_all(vertex, removed);
+    for (const auto& [label, to] : removed) {
+        inverse_.remove(to, label, vertex);
+        log_.push_back({Edge{vertex, label, to}, false});
+    }
+    // Loops were already removed above, together with outgoing edges.
+    removed.clear();
+    inverse_.remove_all(vertex, removed);
+    for (const auto& [label, from] : removed) {
+        forward_.remove(from, label, vertex);
+        log_.push_back({Edge{from, label, vertex}, false});
+    }
+}
+
 void MutableEdgesContainer::apply() {
-    forward_.apply();
-    inverse_.apply();
+    applied_ = log_.size();
 }
 
 void MutableEdgesContainer::commit() {
-    forward_.commit();
-    inverse_.commit();
+    log_.erase(log_.begin(), log_.begin() + applied_);
+    applied_ = 0;
+    if (log_.empty() && log_.capacity() > kMaxRetainedLogCapacity) {
+        std::vector<Change>().swap(log_);
+    }
 }
 
 void MutableEdgesContainer::rollback() {
-    forward_.rollback();
-    inverse_.rollback();
+    for (auto it = log_.rbegin(); it != log_.rend(); ++it) {
+        const auto& [edge, added] = *it;
+        if (added) erase(edge.from, edge.label, edge.to);
+        else       insert(edge.from, edge.label, edge.to);
+    }
+    log_.clear();
+    applied_ = 0;
+    if (log_.capacity() > kMaxRetainedLogCapacity) {
+        std::vector<Change>().swap(log_);
+    }
+}
+
+std::vector<Edge> MutableEdgesContainer::iter_just_changed(bool added) const {
+    // Only actual changes are logged, so changes of a particular edge alternate between
+    // adding and removing; the first and the last of them define the net change.
+    absl::flat_hash_map<Edge, std::pair<bool, bool>, std::hash<Edge>> first_and_last;
+    for (auto it = log_.begin() + applied_; it != log_.end(); ++it) {
+        auto [entry, inserted] = first_and_last.try_emplace(it->edge, it->added, it->added);
+        if (!inserted) {
+            entry->second.second = it->added;
+        }
+    }
+    std::vector<Edge> result;
+    for (const auto& [edge, first_and_last_added] : first_and_last) {
+        if (first_and_last_added.first == added && first_and_last_added.second == added) {
+            result.push_back(edge);
+        }
+    }
+    return result;
+}
+
+std::vector<Edge> MutableEdgesContainer::iter_just_added() const {
+    return iter_just_changed(true);
+}
+
+std::vector<Edge> MutableEdgesContainer::iter_just_removed() const {
+    return iter_just_changed(false);
 }
 
 std::vector<Edge> MutableEdgesContainer::iter_present() const {
@@ -667,18 +339,6 @@ std::vector<Edge> MutableEdgesContainer::iter_present_to_vertex_via_labels(Verte
 std::vector<Edge> MutableEdgesContainer::iter_present_via_labels(const std::vector<EdgeLabel>& labels) const {
     std::vector<Edge> result;
     forward_.iter_present_via_labels(labels, result);
-    return result;
-}
-
-std::vector<Edge> MutableEdgesContainer::iter_just_added() const {
-    std::vector<Edge> result;
-    forward_.iter_just_added(result);
-    return result;
-}
-
-std::vector<Edge> MutableEdgesContainer::iter_just_removed() const {
-    std::vector<Edge> result;
-    forward_.iter_just_removed(result);
     return result;
 }
 

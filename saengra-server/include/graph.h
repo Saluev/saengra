@@ -64,37 +64,8 @@ public:
     void rollback();
 
 private:
-    class ApplyUpdatesDirectionalContext {
-    public:
-        ApplyUpdatesDirectionalContext(Trunk& trunk);
-        bool focus_on_branch(VertexID from_id, bool create_branch_if_missing);
-        bool focus_on_leaf(EdgeLabel label, bool create_leaf_if_missing);
-        std::vector<std::pair<EdgeLabel, VertexID>> collect_all_from_branch_and_remove();
-        std::vector<VertexID> collect_all_from_leaf();
-        void remove_all_from_leaf();
-        void remove_edge(VertexID to_id);
-        void add_edge(VertexID to_id);
-        inline void mark_branch_as_just_added() { trunk_.mark_just_added(last_vertex_id_, last_branch_); }
-        inline void mark_branch_as_just_removed() { trunk_.mark_just_removed(last_vertex_id_, last_branch_); }
-    private:
-        Trunk& trunk_;
-
-        VertexID last_vertex_id_ = nullptr;
-        Branch* last_branch_ = nullptr;
-        const std::string* last_label_text_ = nullptr;
-        Leaf* last_leaf_ = nullptr;
-    };
-
-    class ApplyUpdatesContext {
-    public:
-        ApplyUpdatesContext(MutableVerticesContainer& vertices, MutableEdgesContainer& edges);
-        ApplyUpdatesDirectionalContext forward;
-        ApplyUpdatesDirectionalContext inverse;
-    };
-
     MutableVerticesContainer vertices_;
     MutableEdgesContainer edges_;
-    bool has_pending_updates_ = false;
 
     VertexData convert_vertex(const ::saengra_api::Vertex& source);
 
@@ -102,19 +73,19 @@ private:
     void update_impl(const UpdatesT& updates);
 
     template<typename Accessor, typename UpdateT>
-    void add_vertex_impl(const UpdateT& update, ApplyUpdatesContext& context);
+    void add_vertex_impl(const UpdateT& update);
 
     template<typename Accessor, typename UpdateT>
-    void add_edge_impl(const UpdateT& update, ApplyUpdatesContext& context);
+    void add_edge_impl(const UpdateT& update);
 
     template<typename Accessor, typename UpdateT>
-    void remove_vertex_impl(const UpdateT& update, ApplyUpdatesContext& context);
+    void remove_vertex_impl(const UpdateT& update);
 
     template<typename Accessor, typename UpdateT>
-    void remove_edge_impl(const UpdateT& update, ApplyUpdatesContext& context);
+    void remove_edge_impl(const UpdateT& update);
 
     template<typename Accessor, typename UpdateT>
-    void remove_edges_to_all_impl(const UpdateT& update, ApplyUpdatesContext& context);
+    void remove_edges_to_all_impl(const UpdateT& update);
 };
 
 }

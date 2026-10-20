@@ -1,5 +1,6 @@
 #include "debug.h"
 #include "matcher.h"
+#include <boost/dynamic_bitset.hpp>
 #include <boost/variant/apply_visitor.hpp>
 #include <boost/variant/static_visitor.hpp>
 #include <unordered_set>

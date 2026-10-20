@@ -5,81 +5,6 @@ namespace saengra {
 
 Graph::Graph() = default;
 
-Graph::ApplyUpdatesDirectionalContext::ApplyUpdatesDirectionalContext(Trunk& trunk):
-    trunk_(trunk) {
-}
-
-bool Graph::ApplyUpdatesDirectionalContext::focus_on_branch(VertexID from_id, bool create_branch_if_missing) {
-    if (last_vertex_id_ != from_id) {
-        last_vertex_id_ = from_id;
-        last_branch_ = create_branch_if_missing ? &trunk_.get_or_create_branch(from_id) : trunk_.get_branch_or_null(from_id);
-        last_label_text_ = nullptr;
-        last_leaf_ = nullptr;
-    } else if (create_branch_if_missing && !last_branch_) {
-        last_branch_ = &trunk_.get_or_create_branch(from_id);
-    }
-    return last_branch_;
-}
-
-bool Graph::ApplyUpdatesDirectionalContext::focus_on_leaf(EdgeLabel label, bool create_leaf_if_missing) {
-    // Here we assume that branch is already correctly focused.
-    if (last_label_text_ != label.text) {
-        last_label_text_ = label.text;
-        last_leaf_ = create_leaf_if_missing ? &last_branch_->get_or_create_leaf(label) : last_branch_->get_leaf_or_null(label);
-    } else if (create_leaf_if_missing && !last_leaf_) {
-        last_leaf_ = &last_branch_->get_or_create_leaf(label);
-    }
-    return last_leaf_;
-}
-
-std::vector<std::pair<EdgeLabel, VertexID>> Graph::ApplyUpdatesDirectionalContext::collect_all_from_branch_and_remove() {
-    static const std::vector<std::pair<EdgeLabel, VertexID>> no_edges;
-    if (last_branch_) {
-        std::vector<std::pair<EdgeLabel, VertexID>> result;
-        last_branch_->iter_present_and_remove(result);
-        if (result.size() > 0) {
-            mark_branch_as_just_removed();
-        }
-        return result;
-    }
-    return no_edges;
-}
-
-std::vector<VertexID> Graph::ApplyUpdatesDirectionalContext::collect_all_from_leaf() {
-    static const std::vector<VertexID> no_edges;
-    if (!last_leaf_) return no_edges;
-
-    std::vector<VertexID> result;
-    boost::apply_visitor([&result](auto& l) { l.iter_present(result); }, *last_leaf_);
-    return result;
-}
-
-void Graph::ApplyUpdatesDirectionalContext::remove_all_from_leaf() {
-    bool result;
-    if (auto* l = boost::get<UniLeaf>(last_leaf_))        result = l->remove_all_from_leaf(*last_leaf_);
-    else result = boost::get<MultiLeaf>(*last_leaf_).remove_all_from_leaf(*last_leaf_);
-    if (result) mark_branch_as_just_removed();
-}
-
-void Graph::ApplyUpdatesDirectionalContext::remove_edge(VertexID to_id) {
-    bool result;
-    if (auto* l = boost::get<UniLeaf>(last_leaf_))        result = l->discard_from_leaf(to_id, *last_leaf_);
-    else result = boost::get<MultiLeaf>(*last_leaf_).discard_from_leaf(to_id, *last_leaf_);
-    if (result) mark_branch_as_just_removed();
-}
-
-void Graph::ApplyUpdatesDirectionalContext::add_edge(VertexID to_id) {
-    // Here we assume that branch and leaf are correctly focused.
-    bool result;
-    if (auto* l = boost::get<UniLeaf>(last_leaf_))        result = l->add_to_leaf(to_id, *last_leaf_);
-    else result = boost::get<MultiLeaf>(*last_leaf_).add_to_leaf(to_id, *last_leaf_);
-    if (result) mark_branch_as_just_added();
-}
-
-Graph::ApplyUpdatesContext::ApplyUpdatesContext(MutableVerticesContainer& vertices, MutableEdgesContainer& edges):
-    forward(edges.get_forward_trunk()), inverse(edges.get_inverse_trunk()) {
-}
-
 VertexData Graph::convert_vertex(const ::saengra_api::Vertex& source) {
     const auto type_name = vertices_.internalize_type_name(source.type_name());
     return VertexData(type_name, source.value());
@@ -138,25 +63,23 @@ void Graph::update_impl<ProtoUpdateAccessor, ProtoUpdates>(const ProtoUpdates& u
     using Accessor = ProtoUpdateAccessor;
 
     if (updates.size() == 0) return;
-    has_pending_updates_ = true;
 
-    ApplyUpdatesContext context(vertices_, edges_);
     for (const auto& update : updates) {
         switch (update.kind()) {
         case ProtoUpdateKind::AddVertex:
-            add_vertex_impl<Accessor>(update, context);
+            add_vertex_impl<Accessor>(update);
             break;
         case ProtoUpdateKind::RemoveVertex:
-            remove_vertex_impl<Accessor>(update, context);
+            remove_vertex_impl<Accessor>(update);
             break;
         case ProtoUpdateKind::AddEdge:
-            add_edge_impl<Accessor>(update, context);
+            add_edge_impl<Accessor>(update);
             break;
         case ProtoUpdateKind::RemoveEdge:
-            remove_edge_impl<Accessor>(update, context);
+            remove_edge_impl<Accessor>(update);
             break;
         case ProtoUpdateKind::RemoveEdgesToAll:
-            remove_edges_to_all_impl<Accessor>(update, context);
+            remove_edges_to_all_impl<Accessor>(update);
             break;
         }
     }
@@ -168,25 +91,23 @@ void Graph::update_impl<NativeUpdateAccessor, NativeUpdates>(const NativeUpdates
     using Accessor = NativeUpdateAccessor;
 
     if (updates.size() == 0) return;
-    has_pending_updates_ = true;
 
-    ApplyUpdatesContext context(vertices_, edges_);
     for (const auto& update : updates) {
         switch (update.kind) {
         case NativeUpdateKind::AddVertex:
-            add_vertex_impl<Accessor>(update, context);
+            add_vertex_impl<Accessor>(update);
             break;
         case NativeUpdateKind::RemoveVertex:
-            remove_vertex_impl<Accessor>(update, context);
+            remove_vertex_impl<Accessor>(update);
             break;
         case NativeUpdateKind::AddEdge:
-            add_edge_impl<Accessor>(update, context);
+            add_edge_impl<Accessor>(update);
             break;
         case NativeUpdateKind::RemoveEdge:
-            remove_edge_impl<Accessor>(update, context);
+            remove_edge_impl<Accessor>(update);
             break;
         case NativeUpdateKind::RemoveEdgesToAll:
-            remove_edges_to_all_impl<Accessor>(update, context);
+            remove_edges_to_all_impl<Accessor>(update);
             break;
         }
     }
@@ -194,59 +115,36 @@ void Graph::update_impl<NativeUpdateAccessor, NativeUpdates>(const NativeUpdates
 
 
 template<typename Accessor, typename UpdateT>
-void Graph::add_vertex_impl(const UpdateT& update, ApplyUpdatesContext& ctx) {
+void Graph::add_vertex_impl(const UpdateT& update) {
     const auto from = Accessor::convert_from(update, vertices_);
     vertices_.add_vertex(from);
 }
 
-
 template<typename Accessor, typename UpdateT>
-void Graph::add_edge_impl(const UpdateT& update, ApplyUpdatesContext& context) {
+void Graph::add_edge_impl(const UpdateT& update) {
     const auto from = Accessor::convert_from(update, vertices_);
     const auto from_id = vertices_.get_vertex_id(from);
     if (!from_id.has_value()) return;
     const auto to = Accessor::convert_to(update, vertices_);
     const auto to_id = vertices_.get_vertex_id(to);
     if (!to_id.has_value()) return;
+    // Removed vertices keep their IDs, so presence has to be checked separately.
+    if (!from_id.value()->present || !to_id.value()->present) return;
     const auto label = Accessor::convert_label(update, edges_);
-
-    context.forward.focus_on_branch(from_id.value(), true);
-    context.forward.focus_on_leaf(label, true);
-    context.forward.add_edge(to_id.value());
-
-    context.inverse.focus_on_branch(to_id.value(), true);
-    context.inverse.focus_on_leaf(label, true);
-    context.inverse.add_edge(from_id.value());
+    edges_.add_edge(from_id.value(), label, to_id.value());
 }
 
 template<typename Accessor, typename UpdateT>
-void Graph::remove_vertex_impl(const UpdateT& update, ApplyUpdatesContext& context) {
+void Graph::remove_vertex_impl(const UpdateT& update) {
     const auto from = Accessor::convert_from(update, vertices_);
     const auto from_id = vertices_.get_vertex_id(from);
     if (!from_id.has_value()) return;
-
-    context.forward.focus_on_branch(from_id.value(), false);
-    context.inverse.focus_on_branch(from_id.value(), false);
-    const auto forward_to_delete = context.forward.collect_all_from_branch_and_remove();
-    const auto inverse_to_delete = context.inverse.collect_all_from_branch_and_remove();
-
-    for (const auto& [label, to_id] : inverse_to_delete) {
-        context.forward.focus_on_branch(to_id, false);
-        context.forward.focus_on_leaf(label, false);
-        context.forward.remove_edge(from_id.value());
-    }
-
-    for (const auto& [label, to_id] : forward_to_delete) {
-        context.inverse.focus_on_branch(to_id, false);
-        context.inverse.focus_on_leaf(label, false);
-        context.inverse.remove_edge(from_id.value());
-    }
-
+    edges_.remove_edges_of_vertex(from_id.value());
     vertices_.discard_vertex(from);
 }
 
 template<typename Accessor, typename UpdateT>
-void Graph::remove_edge_impl(const UpdateT& update, ApplyUpdatesContext& context) {
+void Graph::remove_edge_impl(const UpdateT& update) {
     const auto from = Accessor::convert_from(update, vertices_);
     const auto from_id = vertices_.get_vertex_id(from);
     if (!from_id.has_value()) return;
@@ -254,37 +152,16 @@ void Graph::remove_edge_impl(const UpdateT& update, ApplyUpdatesContext& context
     const auto to_id = vertices_.get_vertex_id(to);
     if (!to_id.has_value()) return;
     const auto label = Accessor::convert_label(update, edges_);
-
-    if (context.forward.focus_on_branch(from_id.value(), false)) {
-        if (context.forward.focus_on_leaf(label, false)) {
-            context.forward.remove_edge(to_id.value());
-        }
-    }
-
-    if (context.inverse.focus_on_branch(to_id.value(), false)) {
-        if (context.inverse.focus_on_leaf(label, false)) {
-            context.inverse.remove_edge(from_id.value());
-        }
-    }
+    edges_.remove_edge(from_id.value(), label, to_id.value());
 }
 
 template<typename Accessor, typename UpdateT>
-void Graph::remove_edges_to_all_impl(const UpdateT& update, ApplyUpdatesContext& context) {
+void Graph::remove_edges_to_all_impl(const UpdateT& update) {
     const auto from = Accessor::convert_from(update, vertices_);
     const auto from_id = vertices_.get_vertex_id(from);
     if (!from_id.has_value()) return;
     const auto label = Accessor::convert_label(update, edges_);
-
-    if (!context.forward.focus_on_branch(from_id.value(), false)) return;
-    if (!context.forward.focus_on_leaf(label, false)) return;
-    const auto forward_to_delete = context.forward.collect_all_from_leaf();
-    context.forward.remove_all_from_leaf();
-
-    for (const auto to_id : forward_to_delete) {
-        context.inverse.focus_on_branch(to_id, false);
-        context.inverse.focus_on_leaf(label, false);
-        context.inverse.remove_edge(from_id.value());
-    }
+    edges_.remove_edges_from_via_label(from_id.value(), label);
 }
 
 void Graph::update(const ProtoUpdates& updates) {
@@ -304,7 +181,7 @@ public:
 };
 
 Observations Graph::apply() {
-    if (!has_pending_updates_) return {};
+    if (!vertices_.has_unapplied_changes() && !edges_.has_unapplied_changes()) return {};
 
     // Trigger observers, check if any of them prevents commit from happening.
     ObservationMap observations;
@@ -346,7 +223,6 @@ Observations Graph::apply() {
 
     vertices_.apply();
     edges_.apply();
-    has_pending_updates_ = false;
 
     Observations flat_observations;
     flat_observations.reserve(observations.size());
@@ -364,7 +240,6 @@ void Graph::commit() {
 void Graph::rollback() {
     vertices_.rollback();
     edges_.rollback();
-    has_pending_updates_ = false;
 }
 
 }

@@ -34,6 +34,17 @@ add_executable(test_edges_container
     ${CMAKE_SOURCE_DIR}/src/graph.cpp
 )
 
+add_executable(test_transactions
+    test_transactions.cpp
+    ${CMAKE_SOURCE_DIR}/src/vertex.cpp
+    ${CMAKE_SOURCE_DIR}/src/vertices_container.cpp
+    ${CMAKE_SOURCE_DIR}/src/edge.cpp
+    ${CMAKE_SOURCE_DIR}/src/edges_container.cpp
+    ${CMAKE_SOURCE_DIR}/src/observable.cpp
+    ${CMAKE_SOURCE_DIR}/src/graph.cpp
+    ${PROTO_SRCS}
+)
+
 add_executable(test_parser
     test_parser.cpp
     ${CMAKE_SOURCE_DIR}/src/expression.cpp
@@ -124,6 +135,11 @@ target_include_directories(test_edges_container PRIVATE
     ${CMAKE_SOURCE_DIR}/include
 )
 
+target_include_directories(test_transactions PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_BINARY_DIR}
+)
+
 target_include_directories(test_parser PRIVATE
     ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_BINARY_DIR}
@@ -157,10 +173,21 @@ find_package(absl REQUIRED)
 target_link_libraries(test_vertices_container
     GTest::gtest
     absl::hash
+    absl::raw_hash_set
 )
 target_link_libraries(test_edges_container
     GTest::gtest
     absl::hash
+    absl::raw_hash_set
+)
+target_link_libraries(test_transactions
+    GTest::gtest
+    GTest::gtest_main
+    protobuf::libprotobuf
+    absl::hash
+    absl::raw_hash_set
+    absl::log_internal_check_op
+    absl::log_internal_message
 )
 target_link_libraries(test_parser
     GTest::gtest
@@ -175,16 +202,19 @@ target_link_libraries(test_graph
     GTest::gtest
     GTest::gmock
     absl::hash
+    absl::raw_hash_set
 )
 target_link_libraries(test_start_positions
     GTest::gtest
     GTest::gmock
     absl::hash
+    absl::raw_hash_set
 )
 target_link_libraries(test_matcher
     GTest::gtest
     GTest::gmock
     absl::hash
+    absl::raw_hash_set
 )
 target_link_libraries(test_observers
     GTest::gtest
@@ -194,6 +224,7 @@ target_link_libraries(test_observers
     absl::log_internal_check_op
     absl::log_internal_message
     spdlog::spdlog
+    absl::raw_hash_set
 )
 
 # Add test to CTest

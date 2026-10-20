@@ -50,22 +50,32 @@ public:
     void apply(void);
     void commit(void);
     void rollback(void);
+    inline bool has_unapplied_changes() const { return applied_ < log_.size(); }
 
     VertexIDRange iter_present() const;
     VertexIDRange iter_present_by_type_name(const VertexTypeName& type_name) const;
-    VertexIDRange iter_just_added(void) const;
-    VertexIDRange iter_just_removed(void) const;
+
+    // Net changes since the last apply().
+    std::vector<VertexID> iter_just_added(void) const;
+    std::vector<VertexID> iter_just_removed(void) const;
 
 private:
+    struct Change {
+        VertexID vertex;
+        bool added;
+    };
+
+    void set_present(VertexID vertex_id, bool present);
+    std::vector<VertexID> iter_just_changed(bool added) const;
+
     std::unordered_map<VertexData, std::unique_ptr<StoredVertex>> vertex_id_by_vertex;
     std::unordered_set<InternalizedTypeName> type_names;
     VertexIDSet present;
-    VertexIDSet committed;
-    VertexIDSet added;
-    VertexIDSet removed;
-    VertexIDSet just_added;
-    VertexIDSet just_removed;
     std::unordered_map<VertexTypeName, VertexIDSet> vertices_by_type_name;
+
+    // Undo log of all changes since the last commit; log_[applied_:] are not applied yet.
+    std::vector<Change> log_;
+    size_t applied_ = 0;
 };
 
 }
