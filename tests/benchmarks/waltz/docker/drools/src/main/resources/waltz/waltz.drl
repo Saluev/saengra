@@ -1,0 +1,363 @@
+// The Waltz benchmark: a rule-for-rule translation of waltz.clp.
+package waltz;
+
+import waltz.Facts;
+import waltz.Facts.Stage;
+import waltz.Facts.Line;
+import waltz.Facts.Edge;
+import waltz.Facts.Junction;
+
+// Duplicating lines into edges
+
+rule "reverse_edges"
+when
+    Stage(value == "duplicate")
+    $l : Line($p1 : p1, $p2 : p2)
+then
+    insert(new Edge($p1, $p2));
+    insert(new Edge($p2, $p1));
+    delete($l);
+end
+
+rule "done_reversing" salience -10
+when
+    $s : Stage(value == "duplicate")
+    not Line()
+then
+    modify($s) { setValue("detect_junctions") }
+end
+
+// Detecting junctions
+
+rule "make-3_junction" salience 10
+when
+    Stage(value == "detect_junctions")
+    $f2 : Edge($bp : p1, $p1 : p2, joined == false)
+    $f3 : Edge(p1 == $bp, $p2 : p2, p2 != $p1, joined == false)
+    $f4 : Edge(p1 == $bp, $p3 : p2, p2 != $p1, p2 != $p2, joined == false)
+then
+    insert(Facts.make3Junction($bp, $p1, $p2, $p3));
+    modify($f2) { setJoined(true) }
+    modify($f3) { setJoined(true) }
+    modify($f4) { setJoined(true) }
+end
+
+rule "make_L"
+when
+    Stage(value == "detect_junctions")
+    $f2 : Edge($bp : p1, $p2 : p2, joined == false)
+    $f3 : Edge(p1 == $bp, $p3 : p2, p2 != $p2, joined == false)
+    not Edge(p1 == $bp, p2 != $p2, p2 != $p3)
+then
+    insert(new Junction($p2, $p3, 0, $bp, "L"));
+    modify($f2) { setJoined(true) }
+    modify($f3) { setJoined(true) }
+end
+
+rule "done_detecting" salience -10
+when
+    $s : Stage(value == "detect_junctions")
+    not Edge(joined == false)
+then
+    modify($s) { setValue("find_initial_boundary") }
+end
+
+// Labeling the boundary: the junctions with the largest and the smallest base points
+
+rule "initial_boundary_junction_L"
+when
+    $s : Stage(value == "find_initial_boundary")
+    Junction(type == "L", $bp : basePoint, $p1 : p1, $p2 : p2)
+    $f3 : Edge(p1 == $bp, p2 == $p1)
+    $f4 : Edge(p1 == $bp, p2 == $p2)
+    not Junction(basePoint > $bp)
+then
+    modify($f3) { setLabel("B") }
+    modify($f4) { setLabel("B") }
+    modify($s) { setValue("find_second_boundary") }
+end
+
+rule "initial_boundary_junction_arrow"
+when
+    $s : Stage(value == "find_initial_boundary")
+    Junction(type == "arrow", $bp : basePoint, $p1 : p1, $p2 : p2, $p3 : p3)
+    $f3 : Edge(p1 == $bp, p2 == $p1)
+    $f4 : Edge(p1 == $bp, p2 == $p2)
+    $f5 : Edge(p1 == $bp, p2 == $p3)
+    not Junction(basePoint > $bp)
+then
+    modify($f3) { setLabel("B") }
+    modify($f4) { setLabel("+") }
+    modify($f5) { setLabel("B") }
+    modify($s) { setValue("find_second_boundary") }
+end
+
+rule "second_boundary_junction_L"
+when
+    $s : Stage(value == "find_second_boundary")
+    Junction(type == "L", $bp : basePoint, $p1 : p1, $p2 : p2)
+    $f3 : Edge(p1 == $bp, p2 == $p1)
+    $f4 : Edge(p1 == $bp, p2 == $p2)
+    not Junction(basePoint < $bp)
+then
+    modify($f3) { setLabel("B") }
+    modify($f4) { setLabel("B") }
+    modify($s) { setValue("labeling") }
+end
+
+rule "second_boundary_junction_arrow"
+when
+    $s : Stage(value == "find_second_boundary")
+    Junction(type == "arrow", $bp : basePoint, $p1 : p1, $p2 : p2, $p3 : p3)
+    $f3 : Edge(p1 == $bp, p2 == $p1)
+    $f4 : Edge(p1 == $bp, p2 == $p2)
+    $f5 : Edge(p1 == $bp, p2 == $p3)
+    not Junction(basePoint < $bp)
+then
+    modify($f3) { setLabel("B") }
+    modify($f4) { setLabel("+") }
+    modify($f5) { setLabel("B") }
+    modify($s) { setValue("labeling") }
+end
+
+// Propagating labels
+
+rule "match_edge"
+when
+    Stage(value == "labeling")
+    $f2 : Edge($p1 : p1, $p2 : p2, $label : label, label in ("+", "-", "B"))
+    $f3 : Edge(p1 == $p2, p2 == $p1, label == "nil")
+then
+    modify($f2) { setPlotted(true) }
+    modify($f3) { setLabel($label), setPlotted(true) }
+end
+
+rule "label_L"
+when
+    Stage(value == "labeling")
+    Junction(type == "L", $bp : basePoint)
+    Edge(p1 == $bp, $p2 : p2, label in ("+", "-"))
+    $f4 : Edge(p1 == $bp, p2 != $p2, label == "nil")
+then
+    modify($f4) { setLabel("B") }
+end
+
+rule "label_tee_A" salience 5
+when
+    Stage(value == "labeling")
+    Junction(type == "tee", $bp : basePoint, $p1 : p1, $p3 : p3)
+    $f3 : Edge(p1 == $bp, p2 == $p1, label == "nil")
+    $f4 : Edge(p1 == $bp, p2 == $p3)
+then
+    modify($f3) { setLabel("B") }
+    modify($f4) { setLabel("B") }
+end
+
+rule "label_tee_B"
+when
+    Stage(value == "labeling")
+    Junction(type == "tee", $bp : basePoint, $p1 : p1, $p3 : p3)
+    $f3 : Edge(p1 == $bp, p2 == $p1)
+    $f4 : Edge(p1 == $bp, p2 == $p3, label == "nil")
+then
+    modify($f3) { setLabel("B") }
+    modify($f4) { setLabel("B") }
+end
+
+rule "label_fork-1"
+when
+    Stage(value == "labeling")
+    Junction(type == "fork", $bp : basePoint)
+    Edge(p1 == $bp, $p1 : p2, label == "+")
+    $f4 : Edge(p1 == $bp, $p2 : p2, p2 != $p1, label == "nil")
+    $f5 : Edge(p1 == $bp, p2 != $p2, p2 != $p1)
+then
+    modify($f4) { setLabel("+") }
+    modify($f5) { setLabel("+") }
+end
+
+rule "label_fork-2"
+when
+    Stage(value == "labeling")
+    Junction(type == "fork", $bp : basePoint)
+    Edge(p1 == $bp, $p1 : p2, label == "B")
+    Edge(p1 == $bp, $p2 : p2, p2 != $p1, label == "-")
+    $f5 : Edge(p1 == $bp, p2 != $p2, p2 != $p1, label == "nil")
+then
+    modify($f5) { setLabel("B") }
+end
+
+rule "label_fork-3"
+when
+    Stage(value == "labeling")
+    Junction(type == "fork", $bp : basePoint)
+    Edge(p1 == $bp, $p1 : p2, label == "B")
+    Edge(p1 == $bp, $p2 : p2, p2 != $p1, label == "B")
+    $f5 : Edge(p1 == $bp, p2 != $p2, p2 != $p1, label == "nil")
+then
+    modify($f5) { setLabel("-") }
+end
+
+rule "label_fork-4"
+when
+    Stage(value == "labeling")
+    Junction(type == "fork", $bp : basePoint)
+    Edge(p1 == $bp, $p1 : p2, label == "-")
+    Edge(p1 == $bp, $p2 : p2, p2 != $p1, label == "-")
+    $f5 : Edge(p1 == $bp, p2 != $p2, p2 != $p1, label == "nil")
+then
+    modify($f5) { setLabel("-") }
+end
+
+rule "label_arrow-1A" salience 5
+when
+    Stage(value == "labeling")
+    Junction(type == "arrow", $bp : basePoint, $p1 : p1, $p2 : p2, $p3 : p3)
+    Edge(p1 == $bp, p2 == $p1, $label : label, label in ("B", "-"))
+    $f4 : Edge(p1 == $bp, p2 == $p2, label == "nil")
+    $f5 : Edge(p1 == $bp, p2 == $p3)
+then
+    modify($f4) { setLabel("+") }
+    modify($f5) { setLabel($label) }
+end
+
+rule "label_arrow-1B"
+when
+    Stage(value == "labeling")
+    Junction(type == "arrow", $bp : basePoint, $p1 : p1, $p2 : p2, $p3 : p3)
+    Edge(p1 == $bp, p2 == $p1, $label : label, label in ("B", "-"))
+    $f4 : Edge(p1 == $bp, p2 == $p2)
+    $f5 : Edge(p1 == $bp, p2 == $p3, label == "nil")
+then
+    modify($f4) { setLabel("+") }
+    modify($f5) { setLabel($label) }
+end
+
+rule "label_arrow-2A" salience 5
+when
+    Stage(value == "labeling")
+    Junction(type == "arrow", $bp : basePoint, $p1 : p1, $p2 : p2, $p3 : p3)
+    Edge(p1 == $bp, p2 == $p3, $label : label, label in ("B", "-"))
+    $f4 : Edge(p1 == $bp, p2 == $p2, label == "nil")
+    $f5 : Edge(p1 == $bp, p2 == $p1)
+then
+    modify($f4) { setLabel("+") }
+    modify($f5) { setLabel($label) }
+end
+
+rule "label_arrow-2B"
+when
+    Stage(value == "labeling")
+    Junction(type == "arrow", $bp : basePoint, $p1 : p1, $p2 : p2, $p3 : p3)
+    Edge(p1 == $bp, p2 == $p3, $label : label, label in ("B", "-"))
+    $f4 : Edge(p1 == $bp, p2 == $p2)
+    $f5 : Edge(p1 == $bp, p2 == $p1, label == "nil")
+then
+    modify($f4) { setLabel("+") }
+    modify($f5) { setLabel($label) }
+end
+
+rule "label_arrow-3A" salience 5
+when
+    Stage(value == "labeling")
+    Junction(type == "arrow", $bp : basePoint, $p1 : p1, $p2 : p2, $p3 : p3)
+    Edge(p1 == $bp, p2 == $p1, label == "+")
+    $f4 : Edge(p1 == $bp, p2 == $p2, label == "nil")
+    $f5 : Edge(p1 == $bp, p2 == $p3)
+then
+    modify($f4) { setLabel("-") }
+    modify($f5) { setLabel("+") }
+end
+
+rule "label_arrow-3B"
+when
+    Stage(value == "labeling")
+    Junction(type == "arrow", $bp : basePoint, $p1 : p1, $p2 : p2, $p3 : p3)
+    Edge(p1 == $bp, p2 == $p1, label == "+")
+    $f4 : Edge(p1 == $bp, p2 == $p2)
+    $f5 : Edge(p1 == $bp, p2 == $p3, label == "nil")
+then
+    modify($f4) { setLabel("-") }
+    modify($f5) { setLabel("+") }
+end
+
+rule "label_arrow-4A" salience 5
+when
+    Stage(value == "labeling")
+    Junction(type == "arrow", $bp : basePoint, $p1 : p1, $p2 : p2, $p3 : p3)
+    Edge(p1 == $bp, p2 == $p3, label == "+")
+    $f4 : Edge(p1 == $bp, p2 == $p2, label == "nil")
+    $f5 : Edge(p1 == $bp, p2 == $p1)
+then
+    modify($f4) { setLabel("-") }
+    modify($f5) { setLabel("+") }
+end
+
+rule "label_arrow-4B"
+when
+    Stage(value == "labeling")
+    Junction(type == "arrow", $bp : basePoint, $p1 : p1, $p2 : p2, $p3 : p3)
+    Edge(p1 == $bp, p2 == $p3, label == "+")
+    $f4 : Edge(p1 == $bp, p2 == $p2)
+    $f5 : Edge(p1 == $bp, p2 == $p1, label == "nil")
+then
+    modify($f4) { setLabel("-") }
+    modify($f5) { setLabel("+") }
+end
+
+rule "label_arrow-5A" salience 5
+when
+    Stage(value == "labeling")
+    Junction(type == "arrow", $bp : basePoint, $p1 : p1, $p2 : p2, $p3 : p3)
+    Edge(p1 == $bp, p2 == $p2, label == "-")
+    $f4 : Edge(p1 == $bp, p2 == $p1)
+    $f5 : Edge(p1 == $bp, p2 == $p3, label == "nil")
+then
+    modify($f4) { setLabel("+") }
+    modify($f5) { setLabel("+") }
+end
+
+rule "label_arrow-5B"
+when
+    Stage(value == "labeling")
+    Junction(type == "arrow", $bp : basePoint, $p1 : p1, $p2 : p2, $p3 : p3)
+    Edge(p1 == $bp, p2 == $p2, label == "-")
+    $f4 : Edge(p1 == $bp, p2 == $p1, label == "nil")
+    $f5 : Edge(p1 == $bp, p2 == $p3)
+then
+    modify($f4) { setLabel("+") }
+    modify($f5) { setLabel("+") }
+end
+
+rule "done_labeling" salience -10
+when
+    $s : Stage(value == "labeling")
+then
+    modify($s) { setValue("plot_remaining_edges") }
+end
+
+// Plotting
+
+rule "plot_remaining"
+when
+    Stage(value == "plot_remaining_edges")
+    $f2 : Edge(plotted == false, label != "nil")
+then
+    modify($f2) { setPlotted(true) }
+end
+
+rule "plot_boundaries"
+when
+    Stage(value == "plot_remaining_edges")
+    $f2 : Edge(plotted == false, label == "nil")
+then
+    modify($f2) { setPlotted(true) }
+end
+
+rule "done_plotting" salience -10
+when
+    $s : Stage(value == "plot_remaining_edges")
+    not Edge(plotted == false)
+then
+    modify($s) { setValue("done") }
+end
