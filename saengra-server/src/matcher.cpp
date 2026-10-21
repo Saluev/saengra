@@ -76,19 +76,16 @@ public:
             }
         }
 
-        bool already_bound = false;
+        auto binding = Refs::Binding::AlreadySet;
         if (expr.ref.has_value()) {
-            auto ref_iter = start_.refs.find(expr.ref.value());
-            if (ref_iter != start_.refs.end()) {
-                if (vertex_id != ref_iter->second) {
-                    // The ref is bound to another vertex.
-                    return;
-                }
-                already_bound = true;
+            binding = start_.refs.binding(expr.ref.value(), vertex_id);
+            if (binding == Refs::Binding::Impossible) {
+                // The ref is set to another vertex, or the vertex is excluded.
+                return;
             }
         }
 
-        Refs refs = expr.ref.has_value() && !already_bound
+        Refs refs = binding == Refs::Binding::Possible
             ? start_.refs.copy_and_set(expr.ref.value(), vertex_id)
             : start_.refs;
 
@@ -267,14 +264,11 @@ public:
             operand_idx.resize(size_after, i);
         }
 
-        // Now we emulate (all:) operator behavior, but without merging.
+        // Now we group subgraphs the same way (all:) does, but don't merge them.
 
         std::map<Refs, std::vector<size_t>> subgraph_idxs_by_refs;
-        std::set<Refs> all_refs;
         for (size_t j = 0; j < operand_qs.subgraphs.size(); ++j) {
-            const auto& refs = operand_qs.subgraphs[j].refs;
-            all_refs.insert(refs);
-            subgraph_idxs_by_refs[refs].push_back(j);
+            subgraph_idxs_by_refs[operand_qs.subgraphs[j].refs].push_back(j);
         }
 
         if (subgraph_idxs_by_refs.size() == 1) {
@@ -284,33 +278,33 @@ public:
             return;
         }
 
-        auto all_ref_names_and_values = collect_all_ref_names_and_values(all_refs);
-        auto refs_domain = cartesian_product(all_ref_names_and_values.values);
-        std::map<Refs, std::vector<size_t>> subgraph_idxs_by_complete_refs;
+        std::vector<Refs> distinct_refs;
+        std::vector<const std::vector<size_t>*> idxs_by_distinct_refs;
         for (const auto& [refs, idxs] : subgraph_idxs_by_refs) {
-            for (const auto& complete_refs : refs_domain) {
-                if (!refs.can_be_lifted_to(complete_refs)) continue;
-                auto& dest = subgraph_idxs_by_complete_refs[complete_refs];
-                dest.insert(dest.end(), idxs.begin(), idxs.end());
-            }
+            distinct_refs.push_back(refs);
+            idxs_by_distinct_refs.push_back(&idxs);
         }
 
-        for (const auto& [refs, idxs] : subgraph_idxs_by_complete_refs) {
-            boost::dynamic_bitset<> operands;
-            operands.resize(expr.operands.size());
-            for (size_t j : idxs) {
-                operands.set(operand_idx[j]);
+        for (const auto& cell : arrange(distinct_refs)) {
+            boost::dynamic_bitset<> operands(expr.operands.size());
+            for (size_t r : cell.members) {
+                for (size_t j : *idxs_by_distinct_refs[r]) {
+                    operands.set(operand_idx[j]);
+                }
             }
             if (!operands.all()) {
-                // This merge would involve no subgraphs from one or more of the operands
-                // — means the subgraphs are not join-compatible and should not be returned.
+                // In this part of the refspace, one of the operands doesn't match.
                 continue;
             }
-            for (size_t j : idxs) {
-                // A subgraph may be returned under several complete refs, so copy it.
-                SubgraphDraft sg = operand_qs.subgraphs[j];
-                sg.refs = refs;
-                dest_.subgraphs.push_back(std::move(sg));
+            for (const Refs& refs : cell.terms) {
+                for (size_t r : cell.members) {
+                    for (size_t j : *idxs_by_distinct_refs[r]) {
+                        // A subgraph may belong to several cells, so copy it.
+                        SubgraphDraft sg = operand_qs.subgraphs[j];
+                        sg.refs = refs;
+                        dest_.subgraphs.push_back(std::move(sg));
+                    }
+                }
             }
         }
     }
@@ -321,14 +315,16 @@ public:
         }
     }
 
-    SubgraphDraft merge(Refs refs, const std::vector<SubgraphDraft>& subgraphs) const {
+    SubgraphDraft merge(Refs refs, const std::vector<const std::vector<SubgraphDraft>*>& subgraph_lists) const {
         SubgraphDraft result{
-            subgraphs[0].start_position, {}, {}, {}, std::move(refs)
+            subgraph_lists[0]->front().start_position, {}, {}, {}, std::move(refs)
         };
-        for (const auto& subgraph : subgraphs) {
-            result.end_positions.insert(result.end_positions.end(), subgraph.end_positions.begin(), subgraph.end_positions.end());
-            result.vertices.insert(result.vertices.end(), subgraph.vertices.begin(), subgraph.vertices.end());
-            result.edges.insert(result.edges.end(), subgraph.edges.begin(), subgraph.edges.end());
+        for (const auto* subgraphs : subgraph_lists) {
+            for (const auto& subgraph : *subgraphs) {
+                result.end_positions.insert(result.end_positions.end(), subgraph.end_positions.begin(), subgraph.end_positions.end());
+                result.vertices.insert(result.vertices.end(), subgraph.vertices.begin(), subgraph.vertices.end());
+                result.edges.insert(result.edges.end(), subgraph.edges.begin(), subgraph.edges.end());
+            }
         }
         return result;
     }
@@ -345,33 +341,33 @@ public:
                 }
 
                 std::map<Refs, std::vector<SubgraphDraft>> subgraphs_by_refs;
-                std::set<Refs> all_refs;
                 for (auto& sg : operand_qs.subgraphs) {
-                    all_refs.insert(sg.refs);
                     subgraphs_by_refs[sg.refs].push_back(std::move(sg));
                 }
 
                 if (subgraphs_by_refs.size() == 1) {
-                    for (const auto& [refs, sgs] : subgraphs_by_refs) {
-                        dest_.subgraphs.push_back(merge(refs, sgs));
-                        return;
-                    }
+                    const auto& [refs, sgs] = *subgraphs_by_refs.begin();
+                    dest_.subgraphs.push_back(merge(refs, {&sgs}));
+                    return;
                 }
 
-                auto all_ref_names_and_values = collect_all_ref_names_and_values(all_refs);
-                auto refs_domain = cartesian_product(all_ref_names_and_values.values);
-                std::map<Refs, std::vector<SubgraphDraft>> subgraphs_by_complete_refs;
-                for (const auto& [refs, subgraphs] : subgraphs_by_refs) {
-                    for (const auto& complete_refs : refs_domain) {
-                        if (!refs.can_be_lifted_to(complete_refs)) continue;
-                        auto& dest = subgraphs_by_complete_refs[complete_refs];
-                        dest.insert(dest.end(), subgraphs.begin(), subgraphs.end());
-                    }
+                // Every point of the refspace gets all subgraphs whose refs cover it, merged. Points
+                // covered by the same subgraphs form a cell of the arrangement of the subgraphs' refs.
+                std::vector<Refs> distinct_refs;
+                std::vector<const std::vector<SubgraphDraft>*> subgraphs_by_distinct_refs;
+                for (const auto& [refs, sgs] : subgraphs_by_refs) {
+                    distinct_refs.push_back(refs);
+                    subgraphs_by_distinct_refs.push_back(&sgs);
                 }
 
-                for (const auto& [refs, subgraphs] : subgraphs_by_complete_refs) {
-                    auto merged = merge(refs, subgraphs);
-                    dest_.subgraphs.push_back(merged);
+                for (auto& cell : arrange(distinct_refs)) {
+                    std::vector<const std::vector<SubgraphDraft>*> subgraph_lists;
+                    for (size_t r : cell.members) {
+                        subgraph_lists.push_back(subgraphs_by_distinct_refs[r]);
+                    }
+                    for (Refs& refs : cell.terms) {
+                        dest_.subgraphs.push_back(merge(std::move(refs), subgraph_lists));
+                    }
                 }
                 return;
             }
@@ -458,10 +454,68 @@ QuerySet Matcher::match(const Query& query, const StartPositions& start_position
     // Match from each start position
     for (const Position& start_pos : start_positions.positions) {
         Start start{start_pos, start_pos, {}};
+        const size_t first = result.subgraphs.size();
         match_(preprocessed_query, preprocessed_query.expression, start, result);
+        expand_negatives(query.graph, start_pos, first, result);
     }
 
     return result.finalize();
+}
+
+void Matcher::expand_negatives(const Graph& graph, const Position& start_pos, size_t first, QuerySetDraft& result) const {
+    // Refs of results can only have positive literals, so a ref that is set to anything but some
+    // vertices is set to every other vertex of the graph in turn. This is deliberately explosive:
+    // a pattern that does this is most likely wrong.
+    std::vector<SubgraphDraft> expanded;
+    std::set<VertexID> used_values;
+    bool expanded_any = false;
+    std::vector<VertexID> all_vertices;
+
+    auto it = result.subgraphs.begin() + first;
+    while (it != result.subgraphs.end()) {
+        if (!it->refs.has_negatives()) {
+            ++it;
+            continue;
+        }
+        if (!expanded_any) {
+            const auto& present = graph.get_vertices().iter_present();
+            all_vertices.assign(present.begin(), present.end());
+            expanded_any = true;
+        }
+
+        std::vector<Refs> variants{it->refs};
+        for (const auto& [name, excluded] : it->refs.excluded_values()) {
+            std::vector<Refs> next;
+            for (const Refs& refs : variants) {
+                for (VertexID vertex_id : all_vertices) {
+                    if (std::find(excluded.begin(), excluded.end(), vertex_id) != excluded.end()) {
+                        continue;
+                    }
+                    next.push_back(refs.copy_and_set(name, vertex_id));
+                    used_values.insert(vertex_id);
+                }
+            }
+            variants = std::move(next);
+        }
+        for (Refs& refs : variants) {
+            SubgraphDraft sg = *it;
+            sg.refs = std::move(refs);
+            expanded.push_back(std::move(sg));
+        }
+        it = result.subgraphs.erase(it);
+    }
+
+    if (!expanded_any) {
+        return;
+    }
+    std::move(expanded.begin(), expanded.end(), std::back_inserter(result.subgraphs));
+
+    // Results change whenever a vertex is added, or one of the used vertices is removed.
+    result.deps.emplace_back(NewVertex{}, start_pos);
+    for (VertexID vertex_id : used_values) {
+        const auto& vertex = *vertex_id;
+        result.deps.emplace_back(ParticularVertex(VertexData(vertex.type_name, vertex.value)), start_pos);
+    }
 }
 
 PreprocessedQuery Matcher::preprocess_query(const Query& query) const {

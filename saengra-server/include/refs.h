@@ -1,8 +1,10 @@
 #pragma once
 
 #include <algorithm>
-#include <map>
-#include <set>
+#include <compare>
+#include <iterator>
+#include <optional>
+#include <string>
 #include <utility>
 #include <vector>
 #include "vertex.h"
@@ -11,70 +13,90 @@ namespace saengra {
 
 using RefName = std::string;
 
-using RefSpace = std::set<RefName>;
+struct Literal {
+    RefName name;
+    bool negative;
+    VertexID value;
+
+    auto operator<=>(const Literal& other) const = default;
+};
 
 class Refs {
-    // Patterns have only a few refs, so a plain list beats a map. It's kept sorted by name,
-    // so that iteration order and comparisons are the same as they would be for std::map.
-    using Item = std::pair<RefName, VertexID>;
+    // Patterns have only a few refs, so a plain list beats a map. It's kept sorted by name, then
+    // positive before negative, then value, so that iteration order and comparisons are stable.
+    using Literals = std::vector<Literal>;
 
 public:
-    using const_iterator = std::vector<Item>::const_iterator;
+    class const_positives_iterator {
+    public:
+        using iterator_category = std::forward_iterator_tag;
+        using value_type = std::pair<const RefName&, VertexID>;
+        using difference_type = std::ptrdiff_t;
+        using reference = value_type;
 
-    const_iterator begin() const { return refs_.begin(); }
-    const_iterator end() const { return refs_.end(); }
+        const_positives_iterator(Literals::const_iterator it, Literals::const_iterator end) : it_(it), end_(end) { skip(); }
 
-    const_iterator find(const RefName& name) const {
-        return std::find_if(refs_.begin(), refs_.end(), [&name](const Item& item) { return item.first == name; });
-    }
+        reference operator*() const { return {it_->name, it_->value}; }
+        const_positives_iterator& operator++() { ++it_; skip(); return *this; }
+        bool operator==(const const_positives_iterator& other) const { return it_ == other.it_; }
 
-    // Unlike copying and then inserting, allocates only once.
-    Refs copy_and_set(const RefName& name, VertexID value) const {
-        Refs result;
-        result.refs_.reserve(refs_.size() + 1);
-        auto it = refs_.begin();
-        for (; it != refs_.end() && it->first < name; ++it) {
-            result.refs_.push_back(*it);
+    private:
+        void skip() {
+            while (it_ != end_ && it_->negative) ++it_;
         }
-        result.refs_.emplace_back(name, value);
-        if (it != refs_.end() && it->first == name) {
-            ++it;  // replaced by the new value
-        }
-        result.refs_.insert(result.refs_.end(), it, refs_.end());
-        return result;
-    }
 
-    bool operator==(const Refs& other) const { return refs_ == other.refs_; }
-    bool operator<(const Refs& other) const { return refs_ < other.refs_; }
+        Literals::const_iterator it_;
+        Literals::const_iterator end_;
+    };
 
-    RefSpace refspace() const {
-        RefSpace result;
-        for (const auto& [k, v] : refs_) {
-            result.insert(result.end(), k);  // hint insertion at end - O(1) amortized
-        }
-        return result;
-    }
+    const_positives_iterator positives_begin() const { return {literals_.begin(), literals_.end()}; }
+    const_positives_iterator positives_end() const { return {literals_.end(), literals_.end()}; }
 
-    bool can_be_lifted_to(const Refs& complete_refs) const;
+    struct Positives {
+        const_positives_iterator begin_;
+        const_positives_iterator end_;
+
+        const_positives_iterator begin() const { return begin_; }
+        const_positives_iterator end() const { return end_; }
+    };
+    Positives positives() const { return {positives_begin(), positives_end()}; }
+
+    const Literals& literals() const { return literals_; }
+    bool has_negatives() const;
+
+    enum class Binding {
+        Possible,     // the ref can be set to the vertex
+        AlreadySet,   // the ref is already set to the vertex
+        Impossible,   // the ref is set to another vertex, or the vertex is excluded
+    };
+    Binding binding(const RefName& name, VertexID value) const;
+
+    Refs copy_and_set(const RefName& name, VertexID value) const;
+
+    // Region algebra.
+    std::optional<Refs> intersect_with(const Refs& other) const;
+    std::vector<Refs> subtract(const Refs& other) const;
+    bool implies(const Refs& other) const;
+
+    std::vector<std::pair<RefName, std::vector<VertexID>>> excluded_values() const;
+
+    bool operator==(const Refs& other) const { return literals_ == other.literals_; }
+    bool operator<(const Refs& other) const { return literals_ < other.literals_; }
 
 private:
-    std::vector<Item> refs_;
+    static std::optional<Refs> normalized(Literals literals);
+
+    Literals literals_;
 };
 
-struct RefNamesAndValues {
-    std::set<RefName> names;
-    std::map<RefName, std::unordered_set<VertexID>> values;
+// A cell of the arrangement of refs: the points of the refspace covered by exactly the refs
+// in `members` (indices into the arranged refs). The cell is a union of `terms`.
+struct RefsCell {
+    std::vector<Refs> terms;
+    std::vector<size_t> members;
 };
 
-RefNamesAndValues collect_all_ref_names_and_values(const std::set<Refs>& refs);
-
-struct RefSpaceAnalysis {
-    std::set<RefSpace> maximal_refspaces;
-    std::map<RefSpace, std::vector<RefSpace>> refspace_to_maximal_refspaces;
-};
-
-using RefsDomain = std::vector<Refs>;
-
-RefsDomain cartesian_product(const std::map<RefName, std::unordered_set<VertexID>>& all_values);
+// Cells of the arrangement of the given (distinct) refs, except the one covered by none of them.
+std::vector<RefsCell> arrange(const std::vector<Refs>& refs);
 
 }

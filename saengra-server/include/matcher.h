@@ -53,6 +53,7 @@ public:
 private:
     PreprocessedQuery preprocess_query(const Query& query) const;
     void match_(const PreprocessedQuery& query, const Expression& expr, const Start& start, QuerySetDraft& dest) const;
+    void expand_negatives(const Graph& graph, const Position& start_pos, size_t first, QuerySetDraft& result) const;
 };
 
 }

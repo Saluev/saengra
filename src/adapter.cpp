@@ -384,7 +384,7 @@ static PyObject* native_observations_to_python(DirectAdapterObject* self, const 
     for (const auto& obs : native_obs) {
         // Build variables dict: ref_name -> unpickled Primitive
         PyObject* variables = PyDict_New();
-        for (const auto& [ref_name, vertex_id] : obs.variables) {
+        for (const auto& [ref_name, vertex_id] : obs.variables.positives()) {
             PyObject* key = PyUnicode_FromStringAndSize(ref_name.data(), ref_name.size());
             PyObject* value = vertex_id_to_python(self, vertex_id);
             if (!key || !value) {
@@ -931,7 +931,7 @@ static PyObject* DirectAdapter_match(DirectAdapterObject* self, PyObject* args) 
 
             // Build refs
             PyObject* refs_dict = PyDict_New();
-            for (const auto& [name, vid] : sg.refs) {
+            for (const auto& [name, vid] : sg.refs.positives()) {
                 PyObject* key = PyUnicode_FromStringAndSize(name.data(), name.size());
                 PyObject* value = vertex_id_to_python(self, vid);
                 if (!key || !value) {

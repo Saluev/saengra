@@ -61,7 +61,7 @@ saengra_api::CommitResponse_Observation Observer::convert_to_proto_observation(c
     saengra_api::CommitResponse_Observation obs;
     obs.set_observer_id(id_);
     obs.set_type(type);
-    for (const auto& [ref_name, vertex_id] : subgraph.refs) {
+    for (const auto& [ref_name, vertex_id] : subgraph.refs.positives()) {
         (*obs.mutable_variables())[ref_name] = convert_to_proto_vertex(*vertex_id);
     }
     return obs;

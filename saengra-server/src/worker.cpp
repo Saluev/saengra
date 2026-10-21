@@ -478,7 +478,7 @@ void Worker::handleMatch(const saengra_api::Match& request, saengra_api::MatchRe
         }
 
         // Set refs
-        for (const auto& [name, vid] : subgraph.refs) {
+        for (const auto& [name, vid] : subgraph.refs.positives()) {
             const auto& ref_vertex = *vid;
             auto& proto_refs = *proto_subgraph->mutable_refs();
             proto_refs[name].set_type_name(*ref_vertex.type_name.text);

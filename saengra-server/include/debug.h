@@ -33,7 +33,7 @@ inline std::ostream& operator<<(std::ostream& os, const Position& position) {
 
 inline std::ostream& operator<<(std::ostream& os, const Refs& refs) {
     os << "Refs(";
-    for (const auto& [k, v] : refs) {
+    for (const auto& [k, v] : refs.positives()) {
         os << k << ":" << v << ", ";
     }
     os << ")";
@@ -48,7 +48,7 @@ inline std::ostream& operator<<(std::ostream& os, const Subgraph& sg) {
     }
     os << ", refs={";
     d = delimiter{", "};
-    for (const auto [k, v] : sg.refs) {
+    for (const auto [k, v] : sg.refs.positives()) {
         os << d << k << ": " << v;
     }
     os << "})";
@@ -63,7 +63,7 @@ inline std::ostream& operator<<(std::ostream& os, const SubgraphDraft& sg) {
     }
     os << ", refs={";
     d = {", "};
-    for (const auto [k, v] : sg.refs) {
+    for (const auto [k, v] : sg.refs.positives()) {
         os << d << k << ": " << v;
     }
     os << "})";

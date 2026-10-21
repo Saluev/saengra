@@ -294,7 +294,12 @@ start position and there are no two different vertices under the same name.
 
 Generally speaking, (all: ) expression finds all maximal merge-compatible groups of subgraphs, merges each group, and
 returns merged subgraphs. "Maximal" here means no more subgraphs can be added to the group while preserving 
-its merge-compatibility.
+its merge-compatibility. Refs of a merged subgraph are all refs of the group's subgraphs. Note that a subgraph may
+belong to several groups; e.g., subgraphs without refs are compatible with any other subgraph, so
+```text
+user (all: -name> str | <added_to_friends- user as f)
+```
+returns a subgraph for every friend `f`, each one including the user's name.
 
 ## AND expression
 
