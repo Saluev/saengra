@@ -58,6 +58,22 @@ add_executable(test_parser
     ${FLEX_ExprLexer_OUTPUTS}
 )
 
+add_executable(test_planner
+    test_planner.cpp
+    ${CMAKE_SOURCE_DIR}/src/planner.cpp
+    ${CMAKE_SOURCE_DIR}/src/plan.cpp
+    ${CMAKE_SOURCE_DIR}/src/expression.cpp
+    ${CMAKE_SOURCE_DIR}/src/graph.cpp
+    ${CMAKE_SOURCE_DIR}/src/parser.cpp
+    ${CMAKE_SOURCE_DIR}/src/vertex.cpp
+    ${CMAKE_SOURCE_DIR}/src/vertices_container.cpp
+    ${CMAKE_SOURCE_DIR}/src/edge.cpp
+    ${CMAKE_SOURCE_DIR}/src/edges_container.cpp
+    ${PROTO_SRCS}
+    ${BISON_ExprParser_OUTPUTS}
+    ${FLEX_ExprLexer_OUTPUTS}
+)
+
 add_executable(test_observables
     test_observables.cpp
     ${CMAKE_SOURCE_DIR}/src/vertex.cpp
@@ -145,6 +161,11 @@ target_include_directories(test_parser PRIVATE
     ${CMAKE_BINARY_DIR}
 )
 
+target_include_directories(test_planner PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_BINARY_DIR}
+)
+
 target_include_directories(test_observables PRIVATE
     ${CMAKE_SOURCE_DIR}/include
 )
@@ -194,6 +215,15 @@ target_link_libraries(test_parser
     GTest::gmock
     absl::hash
 )
+target_link_libraries(test_planner
+    GTest::gtest
+    GTest::gtest_main
+    protobuf::libprotobuf
+    absl::hash
+    absl::raw_hash_set
+    absl::log_internal_check_op
+    absl::log_internal_message
+)
 target_link_libraries(test_observables
     GTest::gtest
     absl::hash
@@ -232,6 +262,7 @@ include(GoogleTest)
 gtest_discover_tests(test_vertices_container)
 gtest_discover_tests(test_edges_container)
 gtest_discover_tests(test_parser)
+gtest_discover_tests(test_planner)
 gtest_discover_tests(test_observables)
 gtest_discover_tests(test_graph)
 gtest_discover_tests(test_start_positions)

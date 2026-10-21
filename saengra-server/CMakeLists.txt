@@ -52,6 +52,8 @@ add_library(saengra_core STATIC
     src/edges_container.cpp
     src/expression.cpp
     src/parser.cpp
+    src/plan.cpp
+    src/planner.cpp
     src/observable.cpp
     src/observer_container.cpp
     src/graph.cpp
