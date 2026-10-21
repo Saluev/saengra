@@ -51,8 +51,7 @@ using Expressions = Expressions;
 class VertexExpr {
 public:
     std::optional<VertexTypeName> type_name;
-    std::optional<RefName> set_ref;
-    std::optional<RefName> match_ref;
+    std::optional<RefName> ref;
     std::optional<int> placeholder_idx;
 
     VertexExpr() = default;

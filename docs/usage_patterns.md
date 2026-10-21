@@ -176,9 +176,19 @@ env.match("? (?= -name> ?) (all: -added_to_friends>)", user(id=1), "mike")
 ```
 
 **Named vertex expression** `* as u` / `user as u` / `? as u` adds matched vertex to refs under specified name.
-The matched vertex also becomes available in the rest of the pattern as **reference vertex expression** `u`.
-Note that there is no syntactic difference between `user` and `u`. If you override type name with reference, e.g.
-`user as user`, the results may be surprising, therefore it is recommended to use abbreviations for ref names.
+If the ref is already set at this point of matching, the vertex has to be the same as the ref's value instead,
+otherwise there is no match.
+
+**Reference vertex expression** `u` is the same as `* as u`: it sets the ref if it isn't set yet, or requires the vertex
+to be its value. Any name used with `as` anywhere in the pattern is a ref name, so a reference may come before
+the corresponding `as`, e.g. when the ref is set in another operand of `&` or in a later lookahead:
+```text
+user (?= -added_to_friends> u) <added_to_friends- user as u
+# finds mutual friends
+```
+Note that there is no syntactic difference between `user` and `u`: an identifier is a reference if the same name
+is used with `as` somewhere in the pattern, and a type name otherwise. Using a name both ways, e.g. `user as user`,
+is an error, so it is recommended to use abbreviations for ref names.
 
 ## Edge expression
 

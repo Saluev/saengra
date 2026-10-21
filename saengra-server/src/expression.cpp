@@ -50,8 +50,8 @@ std::string VertexExpr::to_string() const {
         oss << "*";
     }
 
-    if (set_ref.has_value()) {
-        oss << " as " << set_ref.value();
+    if (ref.has_value()) {
+        oss << " as " << ref.value();
     }
     return oss.str();
 }

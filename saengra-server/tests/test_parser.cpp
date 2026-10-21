@@ -66,8 +66,7 @@ TEST_F(ParserTest, ParseSimpleVertex) {
     ASSERT_NE(vertex, nullptr);
     EXPECT_TRUE(vertex->type_name.has_value());
     EXPECT_EQ(vertex->type_name.value(), "Person");
-    EXPECT_FALSE(vertex->match_ref.has_value());
-    EXPECT_FALSE(vertex->set_ref.has_value());
+    EXPECT_FALSE(vertex->ref.has_value());
     EXPECT_FALSE(vertex->placeholder_idx.has_value());
 }
 
@@ -77,13 +76,12 @@ TEST_F(ParserTest, ParseVertexWithRef) {
     ASSERT_NE(vertex, nullptr);
     EXPECT_TRUE(vertex->type_name.has_value());
     EXPECT_EQ(vertex->type_name.value(), "Person");
-    EXPECT_FALSE(vertex->match_ref.has_value());
-    EXPECT_TRUE(vertex->set_ref.has_value());
-    EXPECT_EQ(vertex->set_ref.value(), "p");
+    EXPECT_TRUE(vertex->ref.has_value());
+    EXPECT_EQ(vertex->ref.value(), "p");
     EXPECT_FALSE(vertex->placeholder_idx.has_value());
 }
 
-TEST_F(ParserTest, ParseVertexWithMatchRef) {
+TEST_F(ParserTest, ParseVertexWithReference) {
     auto expr = parser_.parse("Person as p <friend_of> p");
     auto* concat = boost::get<ConcatenationExpr>(&expr);
     ASSERT_NE(concat, nullptr);
@@ -92,7 +90,7 @@ TEST_F(ParserTest, ParseVertexWithMatchRef) {
     auto* vertex = boost::get<VertexExpr>(&concat->operands[2]);
     ASSERT_NE(vertex, nullptr);
     EXPECT_FALSE(vertex->type_name.has_value());
-    EXPECT_EQ(vertex->match_ref, "p");
+    EXPECT_EQ(vertex->ref, "p");
 }
 
 TEST_F(ParserTest, ParseWildcardVertex) {
@@ -100,8 +98,7 @@ TEST_F(ParserTest, ParseWildcardVertex) {
     auto* vertex = boost::get<VertexExpr>(&expr);
     ASSERT_NE(vertex, nullptr);
     EXPECT_FALSE(vertex->type_name.has_value());;
-    EXPECT_FALSE(vertex->match_ref.has_value());
-    EXPECT_FALSE(vertex->set_ref.has_value());
+    EXPECT_FALSE(vertex->ref.has_value());
     EXPECT_FALSE(vertex->placeholder_idx.has_value());
 }
 
@@ -110,8 +107,7 @@ TEST_F(ParserTest, ParsePlaceholder) {
     auto* vertex = boost::get<VertexExpr>(&expr);
     ASSERT_NE(vertex, nullptr);
     EXPECT_FALSE(vertex->type_name.has_value());;
-    EXPECT_FALSE(vertex->match_ref.has_value());
-    EXPECT_FALSE(vertex->set_ref.has_value());
+    EXPECT_FALSE(vertex->ref.has_value());
     EXPECT_EQ(vertex->placeholder_idx, 0);
 }
 

@@ -35,11 +35,6 @@ public:
             return;
         }
 
-        if (expr.match_ref.has_value()) {
-            // TODO validate expression after parsing
-            throw std::runtime_error("first vertex can't be a named reference");
-        }
-
         if (expr.type_name.has_value()) {
             const auto& type_name = expr.type_name.value();
             auto matching_vertices = vertices.iter_present_by_type_name(type_name);

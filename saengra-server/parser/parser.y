@@ -143,7 +143,7 @@ vertex:
     | TOKEN_IDENTIFIER TOKEN_AS TOKEN_IDENTIFIER {
         VertexTypeName type_name = parse_graph->internalize_type_name(*$1);
         VertexExpr v(type_name);
-        v.set_ref = *$3;
+        v.ref = *$3;
         delete $1;
         delete $3;
         $$ = new Expression{std::move(v)};
@@ -156,7 +156,7 @@ vertex:
     | TOKEN_PLACEHOLDER TOKEN_AS TOKEN_IDENTIFIER {
         VertexExpr v;
         v.placeholder_idx = 0;
-        v.set_ref = *$3;
+        v.ref = *$3;
         delete $3;
         $$ = new Expression{std::move(v)};
     }
@@ -166,7 +166,7 @@ vertex:
     }
     | TOKEN_WILDCARD TOKEN_AS TOKEN_IDENTIFIER {
         VertexExpr v;
-        v.set_ref = *$3;
+        v.ref = *$3;
         delete $3;
         $$ = new Expression{std::move(v)};
     }

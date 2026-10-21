@@ -32,8 +32,11 @@ Expression Parser::parse(const std::string& input) {
         int counter = 0;
         update_placeholder_indices(*parse_result_raw, counter);
 
-        std::vector<std::string> refs;
-        update_set_refs(*parse_result_raw, refs);
+        // Names are resolved for the whole expression at once, so that a reference may precede
+        // its `as` (e.g., when the ref is bound in a parallel or optional branch, or in a lookahead).
+        std::set<std::string> ref_names;
+        collect_ref_names(*parse_result_raw, ref_names);
+        resolve_refs(*parse_result_raw, ref_names);
 
         // Wrap raw pointer in unique_ptr
         return *parse_result_raw;
@@ -53,30 +56,33 @@ void Parser::update_placeholder_indices(Expression& expr, int& counter) const {
     }
 }
 
-void Parser::update_set_refs(Expression& expr, std::vector<std::string>& refs) const {
+void Parser::collect_ref_names(const Expression& expr, std::set<std::string>& names) const {
     if (auto* vertex_expr = boost::get<VertexExpr>(&expr)) {
-        if (vertex_expr->set_ref.has_value()) {
-            const auto& ref = vertex_expr->set_ref.value();
-            const auto it = std::find(refs.begin(), refs.end(), ref);
-            if (it != refs.end()) {
-                // Might actually be OK in some cases.
-                // throw std::runtime_error("ref " + ref + " set twice");
-            } else {
-                refs.push_back(ref);
-            }
+        if (vertex_expr->ref.has_value()) {
+            names.insert(vertex_expr->ref.value());
         }
+    }
+    for (const auto& child : expr.iter_children()) {
+        collect_ref_names(child, names);
+    }
+}
 
+void Parser::resolve_refs(Expression& expr, const std::set<std::string>& names) const {
+    if (auto* vertex_expr = boost::get<VertexExpr>(&expr)) {
         if (vertex_expr->type_name.has_value()) {
-            const auto& name = vertex_expr->type_name.value().text;
-            const auto it = std::find(refs.begin(), refs.end(), *name);
-            if (it != refs.end()) {
+            const auto& name = *vertex_expr->type_name.value().text;
+            if (names.contains(name)) {
+                if (vertex_expr->ref.has_value()) {
+                    throw std::runtime_error("'" + name + "' is used both as a type name and as a ref name");
+                }
+                // A reference `x` is the same as `* as x`.
                 vertex_expr->type_name.reset();
-                vertex_expr->match_ref = *it;
+                vertex_expr->ref = name;
             }
         }
     }
     for (auto& child : expr.iter_children()) {
-        update_set_refs(child, refs);
+        resolve_refs(child, names);
     }
 }
 

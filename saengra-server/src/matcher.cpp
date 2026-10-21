@@ -70,24 +70,26 @@ public:
             }
         }
 
-        if (expr.match_ref.has_value()) {
-            auto ref_iter = start_.refs.find(expr.match_ref.value());
-            if (ref_iter == start_.refs.end()) {
-                return;
-            }
-            if (vertex_id != ref_iter->second) {
-                return;
-            }
-        }
-
         if (expr.type_name.has_value()) {
             if (vertex.type_name != expr.type_name.value()) {
                 return;
             }
         }
 
-        Refs refs = expr.set_ref.has_value()
-            ? start_.refs.copy_and_set(expr.set_ref.value(), vertex_id)
+        bool already_bound = false;
+        if (expr.ref.has_value()) {
+            auto ref_iter = start_.refs.find(expr.ref.value());
+            if (ref_iter != start_.refs.end()) {
+                if (vertex_id != ref_iter->second) {
+                    // The ref is bound to another vertex.
+                    return;
+                }
+                already_bound = true;
+            }
+        }
+
+        Refs refs = expr.ref.has_value() && !already_bound
+            ? start_.refs.copy_and_set(expr.ref.value(), vertex_id)
             : start_.refs;
 
         SubgraphDraft subgraph{

@@ -6,6 +6,7 @@
 #include "graph.h"
 #include <string>
 #include <memory>
+#include <set>
 
 namespace saengra {
 
@@ -17,7 +18,8 @@ private:
     Graph& graph_;
 
     void update_placeholder_indices(Expression& expr, int& counter) const;
-    void update_set_refs(Expression& expr, std::vector<std::string>& refs) const;
+    void collect_ref_names(const Expression& expr, std::set<std::string>& names) const;
+    void resolve_refs(Expression& expr, const std::set<std::string>& names) const;
 };
 
 } // namespace saengra
