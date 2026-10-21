@@ -143,6 +143,9 @@ class OperationExpr {
 public:
     Expression operand;
     OperationType op_type;
+    // Unless only: sorted refs that occur in the pattern outside the operand. The negation passes
+    // exclusions of their values on; other refs of the operand are local to it.
+    std::vector<RefName> shared_refs;
 
     OperationExpr(OperationType type, Expression op);
 

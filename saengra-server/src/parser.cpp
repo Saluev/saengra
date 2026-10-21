@@ -37,6 +37,8 @@ Expression Parser::parse(const std::string& input) {
         std::set<std::string> ref_names;
         collect_ref_names(*parse_result_raw, ref_names);
         resolve_refs(*parse_result_raw, ref_names);
+        const auto ref_counts = resolve_shared_refs(*parse_result_raw, {});
+        resolve_shared_refs(*parse_result_raw, ref_counts);
 
         // Wrap raw pointer in unique_ptr
         return *parse_result_raw;
@@ -84,6 +86,33 @@ void Parser::resolve_refs(Expression& expr, const std::set<std::string>& names) 
     for (auto& child : expr.iter_children()) {
         resolve_refs(child, names);
     }
+}
+
+// Returns how many times each ref occurs in the expression. With the counts for the whole pattern,
+// also sets shared refs of negations: those occurring outside of them.
+std::map<std::string, int> Parser::resolve_shared_refs(Expression& expr, const std::map<std::string, int>& total_counts) const {
+    std::map<std::string, int> counts;
+    if (auto* vertex_expr = boost::get<VertexExpr>(&expr)) {
+        if (vertex_expr->ref.has_value()) {
+            ++counts[vertex_expr->ref.value()];
+        }
+    }
+    for (auto& child : expr.iter_children()) {
+        for (const auto& [name, count] : resolve_shared_refs(child, total_counts)) {
+            counts[name] += count;
+        }
+    }
+    if (auto* operation_expr = boost::get<OperationExpr>(&expr)) {
+        if (operation_expr->op_type == OperationType::Unless && !total_counts.empty()) {
+            operation_expr->shared_refs.clear();
+            for (const auto& [name, count] : counts) {
+                if (total_counts.at(name) > count) {
+                    operation_expr->shared_refs.push_back(name);
+                }
+            }
+        }
+    }
+    return counts;
 }
 
 } // namespace saengra

@@ -409,8 +409,22 @@ public:
                 MatchVisitor operand_visitor(query_, start_, operand_qs);
                 boost::apply_visitor(operand_visitor, expr.operand);
 
-                if (operand_qs.subgraphs.empty()) {
-                    dest_.subgraphs.push_back(SubgraphDraft{start_.position, {start_.position}, {}, {}, start_.refs});
+                // The negation holds in the part of the refspace where the operand doesn't match.
+                // Refs local to the operand are projected away: it must match for none of their values.
+                std::vector<Refs> terms{start_.refs};
+                for (const auto& operand_sg : operand_qs.subgraphs) {
+                    if (operand_sg.refs == start_.refs) {
+                        // The operand matched without narrowing the refs, so the negation fails everywhere.
+                        terms.clear();
+                        break;
+                    }
+                    terms = subtract_from_union(terms, operand_sg.refs.restricted_to(expr.shared_refs));
+                    if (terms.empty()) {
+                        break;
+                    }
+                }
+                for (Refs& refs : terms) {
+                    dest_.subgraphs.push_back(SubgraphDraft{start_.position, {start_.position}, {}, {}, std::move(refs)});
                 }
                 return;
             }

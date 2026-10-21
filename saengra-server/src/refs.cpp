@@ -97,6 +97,16 @@ bool Refs::implies(const Refs& other) const {
     return true;
 }
 
+Refs Refs::restricted_to(const std::vector<RefName>& names) const {
+    Refs result;
+    for (const Literal& literal : literals_) {
+        if (std::binary_search(names.begin(), names.end(), literal.name)) {
+            result.literals_.push_back(literal);
+        }
+    }
+    return result;
+}
+
 // Removes duplicates and refs contained in other refs of the union.
 static void simplify_union(std::vector<Refs>& refs) {
     std::sort(refs.begin(), refs.end());
@@ -104,14 +114,16 @@ static void simplify_union(std::vector<Refs>& refs) {
     if (refs.size() <= 1) {
         return;
     }
+    std::vector<bool> contained(refs.size(), false);
+    for (size_t i = 0; i < refs.size(); ++i) {
+        for (size_t j = 0; j < refs.size() && !contained[i]; ++j) {
+            contained[i] = i != j && refs[i].implies(refs[j]);
+        }
+    }
     std::vector<Refs> result;
     result.reserve(refs.size());
     for (size_t i = 0; i < refs.size(); ++i) {
-        bool contained = false;
-        for (size_t j = 0; j < refs.size() && !contained; ++j) {
-            contained = i != j && refs[i].implies(refs[j]);
-        }
-        if (!contained) {
+        if (!contained[i]) {
             result.push_back(std::move(refs[i]));
         }
     }
@@ -153,7 +165,7 @@ std::vector<std::pair<RefName, std::vector<VertexID>>> Refs::excluded_values() c
 // Arrangement
 // ============================================================================
 
-static std::vector<Refs> subtract_from_union(const std::vector<Refs>& terms, const Refs& refs) {
+std::vector<Refs> subtract_from_union(const std::vector<Refs>& terms, const Refs& refs) {
     std::vector<Refs> result;
     for (const Refs& term : terms) {
         auto rest = term.subtract(refs);

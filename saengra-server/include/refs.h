@@ -77,7 +77,7 @@ public:
     std::optional<Refs> intersect_with(const Refs& other) const;
     std::vector<Refs> subtract(const Refs& other) const;
     bool implies(const Refs& other) const;
-
+    Refs restricted_to(const std::vector<RefName>& names) const;
     std::vector<std::pair<RefName, std::vector<VertexID>>> excluded_values() const;
 
     bool operator==(const Refs& other) const { return literals_ == other.literals_; }
@@ -88,6 +88,8 @@ private:
 
     Literals literals_;
 };
+
+std::vector<Refs> subtract_from_union(const std::vector<Refs>& terms, const Refs& refs);
 
 // A cell of the arrangement of refs: the points of the refspace covered by exactly the refs
 // in `members` (indices into the arranged refs). The cell is a union of `terms`.
