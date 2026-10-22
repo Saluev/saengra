@@ -12,6 +12,30 @@ namespace saengra {
 IncrementalMatcher::IncrementalMatcher(const Matcher& matcher, const Query& query)
     : matcher_(matcher), query_(query) {}
 
+// Groups deps by start positions; deps of each start position are sorted and deduplicated.
+static std::vector<std::pair<ObservableStartPosition, Observables>> group_deps(const QuerySetObservables& qsos) {
+    std::vector<std::pair<ObservableStartPosition, Observables>> groups;
+    absl::flat_hash_map<ObservableStartPosition, size_t, std::hash<ObservableStartPosition>> group_by_sp;
+    size_t group = 0;
+    for (const QuerySetObservable& d : qsos) {
+        // The matcher matches from one start position at a time, so deps of a start position are
+        // usually contiguous.
+        if (groups.empty() || !(groups[group].first == d.start_position)) {
+            auto [it, inserted] = group_by_sp.try_emplace(d.start_position, groups.size());
+            if (inserted) {
+                groups.emplace_back(d.start_position, Observables{});
+            }
+            group = it->second;
+        }
+        groups[group].second.push_back(d.observable);
+    }
+    for (auto& [sp, deps] : groups) {
+        std::sort(deps.begin(), deps.end());
+        deps.erase(std::unique(deps.begin(), deps.end()), deps.end());
+    }
+    return groups;
+}
+
 Observables IncrementalMatcher::reinitialize() {
     StartPositionFinder finder;
     auto start_positions = finder.find_start_positions(query_);
@@ -25,8 +49,19 @@ Observables IncrementalMatcher::reinitialize() {
     // Return observables that we have to subscribe to immediately.
     Observables result;
     ObservableSet removed;
-    fill_deps(last_qs.deps, result, removed);
-    fill_deps(start_deps_, result, removed);
+    for (auto& [sp, deps] : group_deps(last_qs.deps)) {
+        for (const Observable& dep : deps) {
+            subscribe(sp, dep, result, removed);
+        }
+        if (const auto* position = std::get_if<Position>(&sp)) {
+            position_to_deps_[*position] = std::move(deps);
+        }
+    }
+    for (auto& [sp, deps] : group_deps(start_deps_)) {
+        for (const Observable& dep : deps) {
+            subscribe(sp, dep, result, removed);
+        }
+    }
     return result;
 }
 
@@ -40,41 +75,37 @@ PositionToSubgraphs IncrementalMatcher::calc_sg_by_sp(std::vector<Subgraph>&& su
     return sg_by_sp;
 }
 
-void IncrementalMatcher::fill_deps(const QuerySetObservables& qsos, Observables& added_deps, ObservableSet& removed_deps) {
-    for (const QuerySetObservable& d : qsos) {
-        auto& positions = dep_to_positions_[d.observable];
-        const bool was_unused = positions.empty();
-        if (!positions.insert(d.start_position).second) {
-            continue;
-        }
-        if (std::holds_alternative<Position>(d.start_position)) {
-            position_to_deps_[std::get<Position>(d.start_position)].push_back(d.observable);
-        }
-        if (was_unused && removed_deps.erase(d.observable) == 0) {
-            added_deps.push_back(d.observable);
+void IncrementalMatcher::subscribe(const ObservableStartPosition& sp, const Observable& dep, Observables& added_deps, ObservableSet& removed_deps) {
+    auto& positions = dep_to_positions_[dep];
+    const bool was_unused = positions.empty();
+    if (positions.insert(sp).second && was_unused && removed_deps.erase(dep) == 0) {
+        added_deps.push_back(dep);
+    }
+}
+
+void IncrementalMatcher::unsubscribe(const Position& sp, const Observable& dep, ObservableSet& removed_deps) {
+    auto dep_it = dep_to_positions_.find(dep);
+    if (dep_it != dep_to_positions_.end()) {
+        dep_it->second.erase(sp);
+        if (dep_it->second.empty()) {
+            removed_deps.insert(dep);
         }
     }
 }
 
-void IncrementalMatcher::clear_deps_for_sps(const std::unordered_set<Position>& sps, ObservableSet& removed_deps) {
-    for (const Position& sp : sps) {
-        auto deps_it = position_to_deps_.find(sp);
-        if (deps_it == position_to_deps_.end()) {
-            continue;
+void IncrementalMatcher::resubscribe(const Position& sp, const Observables& old_deps, const Observables& new_deps,
+                                     Observables& added_deps, ObservableSet& removed_deps) {
+    auto old_it = old_deps.begin();
+    auto new_it = new_deps.begin();
+    while (old_it != old_deps.end() || new_it != new_deps.end()) {
+        if (new_it == new_deps.end() || (old_it != old_deps.end() && *old_it < *new_it)) {
+            unsubscribe(sp, *old_it++, removed_deps);
+        } else if (old_it == old_deps.end() || *new_it < *old_it) {
+            subscribe(sp, *new_it++, added_deps, removed_deps);
+        } else {
+            ++old_it;
+            ++new_it;
         }
-
-        const Observables& deps = deps_it->second;
-        for (const Observable& d : deps) {
-            auto dep_it = dep_to_positions_.find(d);
-            if (dep_it != dep_to_positions_.end()) {
-                dep_it->second.erase(sp);
-                if (dep_it->second.empty()) {
-                    removed_deps.insert(d);
-                }
-            }
-        }
-
-        position_to_deps_.erase(deps_it);
     }
 }
 
@@ -183,11 +214,34 @@ IncrementalUpdate IncrementalMatcher::match_incrementally(const Observations& os
         start_positions, last_sp_to_sgs_, curr_sg_by_sp
     );
 
-    // Deps that nothing depends on anymore are removed; deps that nothing depended on are added.
+    // Only deps that changed are updated. Deps that nothing depends on anymore are removed; deps that
+    // nothing depended on are added.
     Observables added_deps;
     ObservableSet unused_deps;
-    clear_deps_for_sps(start_positions, unused_deps);
-    fill_deps(curr_qs.deps, added_deps, unused_deps);
+    std::unordered_set<Position> sps_with_deps;
+    for (auto& [sp, deps] : group_deps(curr_qs.deps)) {
+        const auto* position = std::get_if<Position>(&sp);
+        if (position == nullptr) {
+            for (const Observable& dep : deps) {
+                subscribe(sp, dep, added_deps, unused_deps);
+            }
+            continue;
+        }
+        sps_with_deps.insert(*position);
+        auto& old_deps = position_to_deps_[*position];
+        resubscribe(*position, old_deps, deps, added_deps, unused_deps);
+        old_deps = std::move(deps);
+    }
+    for (const Position& sp : start_positions) {
+        if (sps_with_deps.contains(sp)) {
+            continue;
+        }
+        auto it = position_to_deps_.find(sp);
+        if (it != position_to_deps_.end()) {
+            resubscribe(sp, it->second, {}, added_deps, unused_deps);
+            position_to_deps_.erase(it);
+        }
+    }
     Observables removed_deps;
     for (const Observable& d : unused_deps) {
         dep_to_positions_.erase(d);

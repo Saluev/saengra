@@ -55,11 +55,18 @@ private:
     PositionToSubgraphs last_sp_to_sgs_;
     QuerySetObservables start_deps_;
     DepToStartPositions dep_to_positions_;
+    // Deps of start positions, sorted.
     absl::flat_hash_map<Position, Observables, std::hash<Position>> position_to_deps_;
 
     static PositionToSubgraphs calc_sg_by_sp(std::vector<Subgraph>&& subgraphs);
-    void fill_deps(const QuerySetObservables& qsos, Observables& added_deps, ObservableSet& removed_deps);
-    void clear_deps_for_sps(const std::unordered_set<Position>& sps, ObservableSet& removed_deps);
+    // Makes the start position depend on the dep. If nothing depended on it before, it's added to
+    // `added_deps`, unless it's in `removed_deps`, then it's erased from there.
+    void subscribe(const ObservableStartPosition& sp, const Observable& dep, Observables& added_deps, ObservableSet& removed_deps);
+    // Makes the start position not depend on the dep. If nothing depends on it anymore, it's added to `removed_deps`.
+    void unsubscribe(const Position& sp, const Observable& dep, ObservableSet& removed_deps);
+    // Makes the start position depend on the new deps instead of the old ones; both are sorted.
+    void resubscribe(const Position& sp, const Observables& old_deps, const Observables& new_deps,
+                     Observables& added_deps, ObservableSet& removed_deps);
     std::unordered_set<Position> iter_start_positions_needing_rematch(const Observations& os) const;
     SubgraphChanges find_subgraph_changes(
         const std::unordered_set<Position>& sps,
