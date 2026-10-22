@@ -23,6 +23,8 @@ struct PickleCache {
     // Two-level cache: C++ map from type pointer to per-type Python dict.
     // Avoids PyTuple_Pack on every lookup; type pointers are stable (immortal).
     absl::flat_hash_map<PyTypeObject*, PyObject*> type_to_dict;
+    // Unpickled vertices. The graph never frees vertices, so their IDs stay valid.
+    absl::flat_hash_map<saengra::VertexID, PyObject*> vertex_to_object;
     PyObject* pickle_module = nullptr;
     PyObject* pickle_dumps = nullptr;
     PyObject* pickle_loads = nullptr;
@@ -38,6 +40,9 @@ struct PickleCache {
     ~PickleCache() {
         for (auto& [type, dict] : type_to_dict) {
             Py_XDECREF(dict);
+        }
+        for (auto& [vertex_id, object] : vertex_to_object) {
+            Py_DECREF(object);
         }
         Py_XDECREF(pickle_loads);
         Py_XDECREF(pickle_dumps);
@@ -107,10 +112,28 @@ struct PickleCache {
         return result;
     }
 
+    // Returns a new reference.
+    PyObject* get_unpickled(saengra::VertexID vertex_id) {
+        auto it = vertex_to_object.find(vertex_id);
+        if (it != vertex_to_object.end()) {
+            Py_INCREF(it->second);
+            return it->second;
+        }
+        PyObject* result = unpickle(vertex_id->value);
+        if (!result) return nullptr;
+        Py_INCREF(result);
+        vertex_to_object.emplace(vertex_id, result);
+        return result;
+    }
+
     void clear() {
         for (auto& [type, dict] : type_to_dict) {
             PyDict_Clear(dict);
         }
+        for (auto& [vertex_id, object] : vertex_to_object) {
+            Py_DECREF(object);
+        }
+        vertex_to_object.clear();
     }
 };
 
@@ -187,7 +210,7 @@ static bool primitive_to_vertex_data(DirectAdapterObject* self, PyObject* obj,
 
 // Helper: convert a VertexID (StoredVertex*) back to Python Primitive
 static PyObject* vertex_id_to_python(DirectAdapterObject* self, saengra::VertexID vertex_id) {
-    return self->pickle_cache->unpickle(vertex_id->value);
+    return self->pickle_cache->get_unpickled(vertex_id);
 }
 
 // ============================================================================
