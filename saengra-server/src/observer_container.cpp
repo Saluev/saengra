@@ -29,12 +29,13 @@ Observer::Observer(ObserverID id, Graph& graph, const saengra_api::Observe_Obser
     ),
     on_create_(request.on_create()),
     on_change_(request.on_change()),
-    on_delete_(request.on_delete()) {
+    on_delete_(request.on_delete()),
+    with_subgraphs_(request.with_subgraphs()) {
 }
 
 Observer::Observer(ObserverID id, Graph& graph, const std::string& expression,
                    const PlaceholderValues& placeholder_values,
-                   bool on_create, bool on_change, bool on_delete):
+                   bool on_create, bool on_change, bool on_delete, bool with_subgraphs):
     id_(id),
     graph_(graph),
     matcher_(
@@ -47,14 +48,40 @@ Observer::Observer(ObserverID id, Graph& graph, const std::string& expression,
     ),
     on_create_(on_create),
     on_change_(on_change),
-    on_delete_(on_delete) {
+    on_delete_(on_delete),
+    with_subgraphs_(with_subgraphs) {
 }
 
-saengra_api::Vertex convert_to_proto_vertex(const StoredVertex& vertex) {
-    saengra_api::Vertex proto_vertex;
-    proto_vertex.set_type_name(*vertex.type_name.text);
-    proto_vertex.set_value(vertex.value);
-    return proto_vertex;
+static void convert_to_proto_vertex(const StoredVertex& vertex, saengra_api::Vertex& proto) {
+    proto.set_type_name(*vertex.type_name.text);
+    proto.set_value(vertex.value);
+}
+
+static void convert_to_proto_position(const Position& position, saengra_api::Position& proto) {
+    convert_to_proto_vertex(*position.vertex_id, *proto.mutable_vertex());
+    proto.set_kind(position.kind == PositionKind::CORE
+        ? saengra_api::Position_PositionKind_CORE
+        : saengra_api::Position_PositionKind_ORBIT);
+}
+
+void convert_to_proto_subgraph(const Subgraph& subgraph, saengra_api::Subgraph& proto) {
+    convert_to_proto_position(subgraph.start_position, *proto.mutable_start_position());
+    for (const Position& end_pos : subgraph.end_positions) {
+        convert_to_proto_position(end_pos, *proto.add_end_positions());
+    }
+    for (VertexID vid : subgraph.vertices) {
+        convert_to_proto_vertex(*vid, *proto.add_vertices());
+    }
+    for (const Edge& edge : subgraph.edges) {
+        auto* proto_edge = proto.add_edges();
+        convert_to_proto_vertex(*edge.from, *proto_edge->mutable_from());
+        proto_edge->set_label(*edge.label.text);
+        convert_to_proto_vertex(*edge.to, *proto_edge->mutable_to());
+    }
+    auto& proto_refs = *proto.mutable_refs();
+    for (const auto& [name, vid] : subgraph.refs.positives()) {
+        convert_to_proto_vertex(*vid, proto_refs[name]);
+    }
 }
 
 saengra_api::CommitResponse_Observation Observer::convert_to_proto_observation(const Subgraph& subgraph, saengra_api::CommitResponse_Observation_ObservationType type) const {
@@ -62,7 +89,10 @@ saengra_api::CommitResponse_Observation Observer::convert_to_proto_observation(c
     obs.set_observer_id(id_);
     obs.set_type(type);
     for (const auto& [ref_name, vertex_id] : subgraph.refs.positives()) {
-        (*obs.mutable_variables())[ref_name] = convert_to_proto_vertex(*vertex_id);
+        convert_to_proto_vertex(*vertex_id, (*obs.mutable_variables())[ref_name]);
+    }
+    if (with_subgraphs_) {
+        convert_to_proto_subgraph(subgraph, *obs.mutable_subgraph());
     }
     return obs;
 }
@@ -109,6 +139,9 @@ NativeObservation Observer::convert_to_native_observation(const Subgraph& subgra
     obs.observer_id = id_;
     obs.type = type;
     obs.variables = subgraph.refs;
+    if (with_subgraphs_) {
+        obs.subgraph = subgraph;
+    }
     return obs;
 }
 
@@ -167,13 +200,13 @@ void ObserverContainer::register_(const saengra_api::Observe_Observer& request) 
 
 void ObserverContainer::register_native(const std::string& id, const std::string& expression,
                                          const PlaceholderValues& placeholder_values,
-                                         bool on_create, bool on_change, bool on_delete) {
+                                         bool on_create, bool on_change, bool on_delete, bool with_subgraphs) {
     ObserverID observer_id = id;
     if (observers_.find(observer_id) != observers_.end()) {
         throw std::runtime_error("Observer with ID '" + observer_id + "' is already registered");
     }
 
-    auto observer = std::make_unique<Observer>(observer_id, graph_, expression, placeholder_values, on_create, on_change, on_delete);
+    auto observer = std::make_unique<Observer>(observer_id, graph_, expression, placeholder_values, on_create, on_change, on_delete, with_subgraphs);
     auto initial_subscriptions = observer->reinitialize();
     observers_[observer_id] = std::move(observer);
     apply_subscription_changes(observer_id, initial_subscriptions);

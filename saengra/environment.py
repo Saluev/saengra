@@ -9,7 +9,7 @@ from saengra.c_extension import DirectAdapter
 from saengra.client import SaengraClient
 from saengra.entity import Entity, EnvProtocol
 from saengra.graph import AddVertex, Edge, Primitive, RemoveVertex, Update, Subgraph
-from saengra.observer import Observer, RefsHandler
+from saengra.observer import Observer, RefsHandler, get_subgraph_arg
 from saengra.socket_adapter import SocketAdapter
 from saengra.utilities.colors import light_green
 from saengra.utilities.itertools import group_by
@@ -266,15 +266,22 @@ class Environment(EnvProtocol):
         observer = self._observers[o.observer_id]
         handlers = observer.pick_handlers(o.type)
         for handler in handlers:
-            self._invoke_handler(handler, o.variables)
+            self._invoke_handler(handler, o.variables, o.subgraph)
 
-    def _invoke_handler(self, handler: RefsHandler, refs: dict[str, Primitive]) -> None:
+    def _invoke_handler(
+        self,
+        handler: RefsHandler,
+        refs: dict[str, Primitive],
+        subgraph: Subgraph | None,
+    ) -> None:
         logger.debug(
             "Invoking %s(%s)", light_green(handler.__name__), LazyRefsFormatter(refs)
         )
         enriched_refs: dict[str, Primitive | Entity | Environment] = {}
         if env_arg := _get_env_arg(handler):
             enriched_refs[env_arg] = self
+        if subgraph_arg := get_subgraph_arg(handler):
+            enriched_refs[subgraph_arg] = subgraph
         for ref, primitive in refs.items():
             if entity_type := self._primitive_to_entity.get(type(primitive)):
                 enriched_refs[ref] = entity_type(self, primitive)

@@ -92,6 +92,7 @@ class Converter:
         proto.on_create = observer.on_create
         proto.on_change = observer.on_change
         proto.on_delete = observer.on_delete
+        proto.with_subgraphs = observer.with_subgraphs
 
     def observer_from_proto(self, proto: messages_pb2.Observe.Observer) -> Observer:
         return Observer(
@@ -103,6 +104,7 @@ class Converter:
             on_create=proto.on_create,
             on_change=proto.on_change,
             on_delete=proto.on_delete,
+            with_subgraphs=proto.with_subgraphs,
         )
 
     def observation_from_proto(
@@ -115,6 +117,11 @@ class Converter:
             variables={
                 k: self.vertex_from_proto(v) for k, v in proto.variables.items()
             },
+            subgraph=(
+                self.subgraph_from_proto(proto.subgraph)
+                if proto.HasField("subgraph")
+                else None
+            ),
         )
 
     def commit_response_from_proto(

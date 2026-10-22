@@ -32,7 +32,7 @@ class EngineInfo:
 
 ENGINES: dict[str, EngineInfo] = {
     "saengra": EngineInfo("Saengra", "tuple observers", "C++ / Py callbacks"),
-    "saengra-all": EngineInfo("Saengra (all:)", "(all:) + re-query", "C++ / Py callbacks"),
+    "saengra-all": EngineInfo("Saengra (all:)", "(all:) observers", "C++ / Py callbacks"),
     "rete-py": EngineInfo("Rete (ref.)", "Rete", "Python"),
     "treat-py": EngineInfo("TREAT (ref.)", "TREAT", "Python"),
     "clips": EngineInfo("CLIPS 6.4", "Rete", "C / Py callbacks", image="rules"),

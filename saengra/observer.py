@@ -1,8 +1,9 @@
+from functools import cache
 from typing import Any, Protocol, TypeAlias
 
 from saengra.api import ObservationType
 from saengra.api import Observer as APIObserver
-from saengra.graph import Primitive
+from saengra.graph import Primitive, Subgraph
 
 
 def observer(
@@ -135,6 +136,15 @@ class Observer:
             on_create=bool(self.create_handlers),
             on_change=bool(self.change_handlers),
             on_delete=bool(self.delete_handlers),
+            with_subgraphs=any(
+                get_subgraph_arg(handler) is not None
+                for handlers in (
+                    self.create_handlers,
+                    self.change_handlers,
+                    self.delete_handlers,
+                )
+                for handler in handlers
+            ),
         )
 
     def pick_handlers(self, observation_type: ObservationType) -> list[RefsHandler]:
@@ -158,6 +168,15 @@ def _generate_id_from_expression(expr: str) -> str:
     expr = expr.replace(" )", ")")
     expr = expr.replace("$as$", " as ")
     return expr
+
+
+@cache
+def get_subgraph_arg(handler: RefsHandler) -> str | None:
+    """The argument of the handler that the matched subgraph is passed to, if any."""
+    for key, value in handler.__annotations__.items():
+        if value is Subgraph:
+            return key
+    return None
 
 
 _OBSERVERS_ATTR_NAME = "__observers__"

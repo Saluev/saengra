@@ -94,6 +94,7 @@ message Observe {
     bool on_create = 4;
     bool on_change = 5;
     bool on_delete = 6;
+    bool with_subgraphs = 7;
   }
 }
 
@@ -151,6 +152,7 @@ message CommitResponse {
     string observer_id = 1;
     ObservationType type = 2;
     map<string, Vertex> variables = 3;
+    optional Subgraph subgraph = 4;  // only returned if observer requested it
 
     enum ObservationType {
       ON_CREATE = 0;

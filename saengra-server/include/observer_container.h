@@ -17,7 +17,10 @@ struct NativeObservation {
     std::string observer_id;
     NativeObservationType type;
     Refs variables;
+    std::optional<Subgraph> subgraph;  // only if the observer requested it
 };
+
+void convert_to_proto_subgraph(const Subgraph& subgraph, saengra_api::Subgraph& proto);
 
 struct SubscriptionChanges {
     Observables added_observables;
@@ -30,7 +33,7 @@ public:
     Observer(ObserverID id, Graph& graph, const saengra_api::Observe_Observer& request);
     Observer(ObserverID id, Graph& graph, const std::string& expression,
              const PlaceholderValues& placeholder_values,
-             bool on_create, bool on_change, bool on_delete);
+             bool on_create, bool on_change, bool on_delete, bool with_subgraphs);
     inline SubscriptionChanges reinitialize() { return {matcher_.reinitialize(), {}}; }
     SubscriptionChanges observe_proto(const Observations& observations, std::vector<saengra_api::CommitResponse_Observation>& dest);
     SubscriptionChanges observe_native(const Observations& observations, std::vector<NativeObservation>& dest);
@@ -42,6 +45,7 @@ private:
     bool on_create_;
     bool on_change_;
     bool on_delete_;
+    bool with_subgraphs_;
 
     saengra_api::CommitResponse_Observation convert_to_proto_observation(const Subgraph&, saengra_api::CommitResponse_Observation_ObservationType) const;
     void convert_to_proto_observations(const Subgraphs&, saengra_api::CommitResponse_Observation_ObservationType, std::vector<saengra_api::CommitResponse_Observation>&) const;
@@ -60,7 +64,7 @@ public:
     void register_(const saengra_api::Observe_Observer& request);
     void register_native(const std::string& id, const std::string& expression,
                          const PlaceholderValues& placeholder_values,
-                         bool on_create, bool on_change, bool on_delete);
+                         bool on_create, bool on_change, bool on_delete, bool with_subgraphs);
     std::vector<saengra_api::CommitResponse_Observation> observe_proto(const Observations& observations);
     std::vector<NativeObservation> observe_native(const Observations& observations);
     void reinitialize_all();

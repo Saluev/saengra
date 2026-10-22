@@ -4,110 +4,111 @@
 # source: messages.proto
 # Protobuf Python Version: 6.33.0
 """Generated protocol buffer code."""
-
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import descriptor_pool as _descriptor_pool
 from google.protobuf import runtime_version as _runtime_version
 from google.protobuf import symbol_database as _symbol_database
 from google.protobuf.internal import builder as _builder
-
 _runtime_version.ValidateProtobufRuntimeVersion(
-    _runtime_version.Domain.PUBLIC, 6, 33, 0, "", "messages.proto"
+    _runtime_version.Domain.PUBLIC,
+    6,
+    33,
+    0,
+    '',
+    'messages.proto'
 )
 # @@protoc_insertion_point(imports)
 
 _sym_db = _symbol_database.Default()
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(
-    b'\n\x0emessages.proto\x12\x0bsaengra_api"*\n\x06Vertex\x12\x11\n\ttype_name\x18\x01 \x01(\x0c\x12\r\n\x05value\x18\x02 \x01(\x0c"Y\n\x04\x45\x64ge\x12!\n\x04\x66rom\x18\x01 \x01(\x0b\x32\x13.saengra_api.Vertex\x12\r\n\x05label\x18\x02 \x01(\x0c\x12\x1f\n\x02to\x18\x03 \x01(\x0b\x32\x13.saengra_api.Vertex"\x86\x01\n\x08Position\x12#\n\x06vertex\x18\x01 \x01(\x0b\x32\x13.saengra_api.Vertex\x12\x30\n\x04kind\x18\x02 \x01(\x0e\x32".saengra_api.Position.PositionKind"#\n\x0cPositionKind\x12\x08\n\x04\x43ORE\x10\x00\x12\t\n\x05ORBIT\x10\x01"\xa1\x02\n\x08Subgraph\x12-\n\x0estart_position\x18\x01 \x01(\x0b\x32\x15.saengra_api.Position\x12,\n\rend_positions\x18\x02 \x03(\x0b\x32\x15.saengra_api.Position\x12%\n\x08vertices\x18\x03 \x03(\x0b\x32\x13.saengra_api.Vertex\x12 \n\x05\x65\x64ges\x18\x04 \x03(\x0b\x32\x11.saengra_api.Edge\x12-\n\x04refs\x18\x05 \x03(\x0b\x32\x1f.saengra_api.Subgraph.RefsEntry\x1a@\n\tRefsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12"\n\x05value\x18\x02 \x01(\x0b\x32\x13.saengra_api.Vertex:\x02\x38\x01"\xd9\x02\n\x07Request\x12\'\n\x07\x63onnect\x18\x01 \x01(\x0b\x32\x14.saengra_api.ConnectH\x00\x12\x32\n\rapply_updates\x18\x02 \x01(\x0b\x32\x19.saengra_api.ApplyUpdatesH\x00\x12%\n\x06\x63ommit\x18\x03 \x01(\x0b\x32\x13.saengra_api.CommitH\x00\x12)\n\x08rollback\x18\x04 \x01(\x0b\x32\x15.saengra_api.RollbackH\x00\x12\'\n\x07observe\x18\x05 \x01(\x0b\x32\x14.saengra_api.ObserveH\x00\x12!\n\x04\x66ind\x18\x06 \x01(\x0b\x32\x11.saengra_api.FindH\x00\x12#\n\x05match\x18\x07 \x01(\x0b\x32\x12.saengra_api.MatchH\x00\x12#\n\x05\x61pply\x18\x08 \x01(\x0b\x32\x12.saengra_api.ApplyH\x00\x42\t\n\x07request"\x1b\n\x07\x43onnect\x12\x10\n\x08graph_id\x18\x01 \x01(\t"\xde\x02\n\x0c\x41pplyUpdates\x12\x31\n\x07updates\x18\x01 \x03(\x0b\x32 .saengra_api.ApplyUpdates.Update\x1a\x9a\x02\n\x06Update\x12\x39\n\x04kind\x18\x01 \x01(\x0e\x32+.saengra_api.ApplyUpdates.Update.UpdateKind\x12!\n\x04\x66rom\x18\x02 \x01(\x0b\x32\x13.saengra_api.Vertex\x12\x12\n\x05label\x18\x03 \x01(\tH\x00\x88\x01\x01\x12$\n\x02to\x18\x04 \x01(\x0b\x32\x13.saengra_api.VertexH\x01\x88\x01\x01"g\n\nUpdateKind\x12\x0e\n\nADD_VERTEX\x10\x00\x12\x0c\n\x08\x41\x44\x44_EDGE\x10\x01\x12\x11\n\rREMOVE_VERTEX\x10\x02\x12\x0f\n\x0bREMOVE_EDGE\x10\x03\x12\x17\n\x13REMOVE_EDGES_TO_ALL\x10\x04\x42\x08\n\x06_labelB\x05\n\x03_to"\x08\n\x06\x43ommit"\x07\n\x05\x41pply"\n\n\x08Rollback"\xd2\x01\n\x07Observe\x12\x30\n\tobservers\x18\x01 \x03(\x0b\x32\x1d.saengra_api.Observe.Observer\x1a\x94\x01\n\x08Observer\x12\n\n\x02id\x18\x01 \x01(\t\x12\x12\n\nexpression\x18\x02 \x01(\t\x12/\n\x12placeholder_values\x18\x03 \x03(\x0b\x32\x13.saengra_api.Vertex\x12\x11\n\ton_create\x18\x04 \x01(\x08\x12\x11\n\ton_change\x18\x05 \x01(\x08\x12\x11\n\ton_delete\x18\x06 \x01(\x08"\xc3\x01\n\x04\x46ind\x12\x10\n\x08vertices\x18\x01 \x01(\x08\x12\x1b\n\x0ewith_type_name\x18\x02 \x01(\tH\x00\x88\x01\x01\x12\r\n\x05\x65\x64ges\x18\x03 \x01(\x08\x12\x17\n\nwith_label\x18\x04 \x01(\tH\x01\x88\x01\x01\x12!\n\x04\x66rom\x18\x06 \x03(\x0b\x32\x13.saengra_api.Vertex\x12\x1f\n\x02to\x18\x05 \x03(\x0b\x32\x13.saengra_api.VertexB\x11\n\x0f_with_type_nameB\r\n\x0b_with_label"L\n\x05Match\x12\x12\n\nexpression\x18\x01 \x01(\t\x12/\n\x12placeholder_values\x18\x02 \x03(\x0b\x32\x13.saengra_api.Vertex"\x9b\x03\n\x08Response\x12/\n\x07\x63onnect\x18\x01 \x01(\x0b\x32\x1c.saengra_api.ConnectResponseH\x00\x12:\n\rapply_updates\x18\x02 \x01(\x0b\x32!.saengra_api.ApplyUpdatesResponseH\x00\x12-\n\x06\x63ommit\x18\x03 \x01(\x0b\x32\x1b.saengra_api.CommitResponseH\x00\x12\x31\n\x08rollback\x18\x04 \x01(\x0b\x32\x1d.saengra_api.RollbackResponseH\x00\x12/\n\x07observe\x18\x05 \x01(\x0b\x32\x1c.saengra_api.ObserveResponseH\x00\x12)\n\x04\x66ind\x18\x06 \x01(\x0b\x32\x19.saengra_api.FindResponseH\x00\x12+\n\x05match\x18\x07 \x01(\x0b\x32\x1a.saengra_api.MatchResponseH\x00\x12+\n\x05\x61pply\x18\x08 \x01(\x0b\x32\x1a.saengra_api.ApplyResponseH\x00\x42\n\n\x08response"|\n\x0f\x43onnectResponse\x12\x33\n\x06status\x18\x01 \x01(\x0e\x32#.saengra_api.ConnectResponse.Status\x12\x0f\n\x07\x63reated\x18\x02 \x01(\x08"#\n\x06Status\x12\x06\n\x02OK\x10\x00\x12\x11\n\rNOT_CONNECTED\x10\x01"u\n\x14\x41pplyUpdatesResponse\x12\x38\n\x06status\x18\x01 \x01(\x0e\x32(.saengra_api.ApplyUpdatesResponse.Status"#\n\x06Status\x12\x06\n\x02OK\x10\x00\x12\x11\n\rNOT_CONNECTED\x10\x01"\x83\x04\n\x0e\x43ommitResponse\x12\x32\n\x06status\x18\x01 \x01(\x0e\x32".saengra_api.CommitResponse.Status\x12<\n\x0bobservation\x18\x02 \x03(\x0b\x32\'.saengra_api.CommitResponse.Observation\x1a\xbb\x02\n\x0bObservation\x12\x13\n\x0bobserver_id\x18\x01 \x01(\t\x12\x45\n\x04type\x18\x02 \x01(\x0e\x32\x37.saengra_api.CommitResponse.Observation.ObservationType\x12I\n\tvariables\x18\x03 \x03(\x0b\x32\x36.saengra_api.CommitResponse.Observation.VariablesEntry\x1a\x45\n\x0eVariablesEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12"\n\x05value\x18\x02 \x01(\x0b\x32\x13.saengra_api.Vertex:\x02\x38\x01">\n\x0fObservationType\x12\r\n\tON_CREATE\x10\x00\x12\r\n\tON_CHANGE\x10\x01\x12\r\n\tON_DELETE\x10\x02"A\n\x06Status\x12\x06\n\x02OK\x10\x00\x12\x11\n\rNOT_CONNECTED\x10\x01\x12\x1c\n\x18REQUIRES_REPEATED_COMMIT\x10\x02"\xa5\x01\n\rApplyResponse\x12\x31\n\x06status\x18\x01 \x01(\x0e\x32!.saengra_api.ApplyResponse.Status\x12<\n\x0bobservation\x18\x02 \x03(\x0b\x32\'.saengra_api.CommitResponse.Observation"#\n\x06Status\x12\x06\n\x02OK\x10\x00\x12\x11\n\rNOT_CONNECTED\x10\x01"m\n\x10RollbackResponse\x12\x34\n\x06status\x18\x01 \x01(\x0e\x32$.saengra_api.RollbackResponse.Status"#\n\x06Status\x12\x06\n\x02OK\x10\x00\x12\x11\n\rNOT_CONNECTED\x10\x01"k\n\x0fObserveResponse\x12\x33\n\x06status\x18\x01 \x01(\x0e\x32#.saengra_api.ObserveResponse.Status"#\n\x06Status\x12\x06\n\x02OK\x10\x00\x12\x11\n\rNOT_CONNECTED\x10\x01"\xae\x01\n\x0c\x46indResponse\x12\x30\n\x06status\x18\x01 \x01(\x0e\x32 .saengra_api.FindResponse.Status\x12%\n\x08vertices\x18\x02 \x03(\x0b\x32\x13.saengra_api.Vertex\x12 \n\x05\x65\x64ges\x18\x03 \x03(\x0b\x32\x11.saengra_api.Edge"#\n\x06Status\x12\x06\n\x02OK\x10\x00\x12\x11\n\rNOT_CONNECTED\x10\x01"\x91\x01\n\rMatchResponse\x12\x31\n\x06status\x18\x01 \x01(\x0e\x32!.saengra_api.MatchResponse.Status\x12(\n\tsubgraphs\x18\x02 \x03(\x0b\x32\x15.saengra_api.Subgraph"#\n\x06Status\x12\x06\n\x02OK\x10\x00\x12\x11\n\rNOT_CONNECTED\x10\x01\x62\x06proto3'
-)
+
+
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0emessages.proto\x12\x0bsaengra_api\"*\n\x06Vertex\x12\x11\n\ttype_name\x18\x01 \x01(\x0c\x12\r\n\x05value\x18\x02 \x01(\x0c\"Y\n\x04\x45\x64ge\x12!\n\x04\x66rom\x18\x01 \x01(\x0b\x32\x13.saengra_api.Vertex\x12\r\n\x05label\x18\x02 \x01(\x0c\x12\x1f\n\x02to\x18\x03 \x01(\x0b\x32\x13.saengra_api.Vertex\"\x86\x01\n\x08Position\x12#\n\x06vertex\x18\x01 \x01(\x0b\x32\x13.saengra_api.Vertex\x12\x30\n\x04kind\x18\x02 \x01(\x0e\x32\".saengra_api.Position.PositionKind\"#\n\x0cPositionKind\x12\x08\n\x04\x43ORE\x10\x00\x12\t\n\x05ORBIT\x10\x01\"\xa1\x02\n\x08Subgraph\x12-\n\x0estart_position\x18\x01 \x01(\x0b\x32\x15.saengra_api.Position\x12,\n\rend_positions\x18\x02 \x03(\x0b\x32\x15.saengra_api.Position\x12%\n\x08vertices\x18\x03 \x03(\x0b\x32\x13.saengra_api.Vertex\x12 \n\x05\x65\x64ges\x18\x04 \x03(\x0b\x32\x11.saengra_api.Edge\x12-\n\x04refs\x18\x05 \x03(\x0b\x32\x1f.saengra_api.Subgraph.RefsEntry\x1a@\n\tRefsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\"\n\x05value\x18\x02 \x01(\x0b\x32\x13.saengra_api.Vertex:\x02\x38\x01\"\xd9\x02\n\x07Request\x12\'\n\x07\x63onnect\x18\x01 \x01(\x0b\x32\x14.saengra_api.ConnectH\x00\x12\x32\n\rapply_updates\x18\x02 \x01(\x0b\x32\x19.saengra_api.ApplyUpdatesH\x00\x12%\n\x06\x63ommit\x18\x03 \x01(\x0b\x32\x13.saengra_api.CommitH\x00\x12)\n\x08rollback\x18\x04 \x01(\x0b\x32\x15.saengra_api.RollbackH\x00\x12\'\n\x07observe\x18\x05 \x01(\x0b\x32\x14.saengra_api.ObserveH\x00\x12!\n\x04\x66ind\x18\x06 \x01(\x0b\x32\x11.saengra_api.FindH\x00\x12#\n\x05match\x18\x07 \x01(\x0b\x32\x12.saengra_api.MatchH\x00\x12#\n\x05\x61pply\x18\x08 \x01(\x0b\x32\x12.saengra_api.ApplyH\x00\x42\t\n\x07request\"\x1b\n\x07\x43onnect\x12\x10\n\x08graph_id\x18\x01 \x01(\t\"\xde\x02\n\x0c\x41pplyUpdates\x12\x31\n\x07updates\x18\x01 \x03(\x0b\x32 .saengra_api.ApplyUpdates.Update\x1a\x9a\x02\n\x06Update\x12\x39\n\x04kind\x18\x01 \x01(\x0e\x32+.saengra_api.ApplyUpdates.Update.UpdateKind\x12!\n\x04\x66rom\x18\x02 \x01(\x0b\x32\x13.saengra_api.Vertex\x12\x12\n\x05label\x18\x03 \x01(\tH\x00\x88\x01\x01\x12$\n\x02to\x18\x04 \x01(\x0b\x32\x13.saengra_api.VertexH\x01\x88\x01\x01\"g\n\nUpdateKind\x12\x0e\n\nADD_VERTEX\x10\x00\x12\x0c\n\x08\x41\x44\x44_EDGE\x10\x01\x12\x11\n\rREMOVE_VERTEX\x10\x02\x12\x0f\n\x0bREMOVE_EDGE\x10\x03\x12\x17\n\x13REMOVE_EDGES_TO_ALL\x10\x04\x42\x08\n\x06_labelB\x05\n\x03_to\"\x08\n\x06\x43ommit\"\x07\n\x05\x41pply\"\n\n\x08Rollback\"\xea\x01\n\x07Observe\x12\x30\n\tobservers\x18\x01 \x03(\x0b\x32\x1d.saengra_api.Observe.Observer\x1a\xac\x01\n\x08Observer\x12\n\n\x02id\x18\x01 \x01(\t\x12\x12\n\nexpression\x18\x02 \x01(\t\x12/\n\x12placeholder_values\x18\x03 \x03(\x0b\x32\x13.saengra_api.Vertex\x12\x11\n\ton_create\x18\x04 \x01(\x08\x12\x11\n\ton_change\x18\x05 \x01(\x08\x12\x11\n\ton_delete\x18\x06 \x01(\x08\x12\x16\n\x0ewith_subgraphs\x18\x07 \x01(\x08\"\xc3\x01\n\x04\x46ind\x12\x10\n\x08vertices\x18\x01 \x01(\x08\x12\x1b\n\x0ewith_type_name\x18\x02 \x01(\tH\x00\x88\x01\x01\x12\r\n\x05\x65\x64ges\x18\x03 \x01(\x08\x12\x17\n\nwith_label\x18\x04 \x01(\tH\x01\x88\x01\x01\x12!\n\x04\x66rom\x18\x06 \x03(\x0b\x32\x13.saengra_api.Vertex\x12\x1f\n\x02to\x18\x05 \x03(\x0b\x32\x13.saengra_api.VertexB\x11\n\x0f_with_type_nameB\r\n\x0b_with_label\"L\n\x05Match\x12\x12\n\nexpression\x18\x01 \x01(\t\x12/\n\x12placeholder_values\x18\x02 \x03(\x0b\x32\x13.saengra_api.Vertex\"\x9b\x03\n\x08Response\x12/\n\x07\x63onnect\x18\x01 \x01(\x0b\x32\x1c.saengra_api.ConnectResponseH\x00\x12:\n\rapply_updates\x18\x02 \x01(\x0b\x32!.saengra_api.ApplyUpdatesResponseH\x00\x12-\n\x06\x63ommit\x18\x03 \x01(\x0b\x32\x1b.saengra_api.CommitResponseH\x00\x12\x31\n\x08rollback\x18\x04 \x01(\x0b\x32\x1d.saengra_api.RollbackResponseH\x00\x12/\n\x07observe\x18\x05 \x01(\x0b\x32\x1c.saengra_api.ObserveResponseH\x00\x12)\n\x04\x66ind\x18\x06 \x01(\x0b\x32\x19.saengra_api.FindResponseH\x00\x12+\n\x05match\x18\x07 \x01(\x0b\x32\x1a.saengra_api.MatchResponseH\x00\x12+\n\x05\x61pply\x18\x08 \x01(\x0b\x32\x1a.saengra_api.ApplyResponseH\x00\x42\n\n\x08response\"|\n\x0f\x43onnectResponse\x12\x33\n\x06status\x18\x01 \x01(\x0e\x32#.saengra_api.ConnectResponse.Status\x12\x0f\n\x07\x63reated\x18\x02 \x01(\x08\"#\n\x06Status\x12\x06\n\x02OK\x10\x00\x12\x11\n\rNOT_CONNECTED\x10\x01\"u\n\x14\x41pplyUpdatesResponse\x12\x38\n\x06status\x18\x01 \x01(\x0e\x32(.saengra_api.ApplyUpdatesResponse.Status\"#\n\x06Status\x12\x06\n\x02OK\x10\x00\x12\x11\n\rNOT_CONNECTED\x10\x01\"\xbe\x04\n\x0e\x43ommitResponse\x12\x32\n\x06status\x18\x01 \x01(\x0e\x32\".saengra_api.CommitResponse.Status\x12<\n\x0bobservation\x18\x02 \x03(\x0b\x32\'.saengra_api.CommitResponse.Observation\x1a\xf6\x02\n\x0bObservation\x12\x13\n\x0bobserver_id\x18\x01 \x01(\t\x12\x45\n\x04type\x18\x02 \x01(\x0e\x32\x37.saengra_api.CommitResponse.Observation.ObservationType\x12I\n\tvariables\x18\x03 \x03(\x0b\x32\x36.saengra_api.CommitResponse.Observation.VariablesEntry\x12,\n\x08subgraph\x18\x04 \x01(\x0b\x32\x15.saengra_api.SubgraphH\x00\x88\x01\x01\x1a\x45\n\x0eVariablesEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\"\n\x05value\x18\x02 \x01(\x0b\x32\x13.saengra_api.Vertex:\x02\x38\x01\">\n\x0fObservationType\x12\r\n\tON_CREATE\x10\x00\x12\r\n\tON_CHANGE\x10\x01\x12\r\n\tON_DELETE\x10\x02\x42\x0b\n\t_subgraph\"A\n\x06Status\x12\x06\n\x02OK\x10\x00\x12\x11\n\rNOT_CONNECTED\x10\x01\x12\x1c\n\x18REQUIRES_REPEATED_COMMIT\x10\x02\"\xa5\x01\n\rApplyResponse\x12\x31\n\x06status\x18\x01 \x01(\x0e\x32!.saengra_api.ApplyResponse.Status\x12<\n\x0bobservation\x18\x02 \x03(\x0b\x32\'.saengra_api.CommitResponse.Observation\"#\n\x06Status\x12\x06\n\x02OK\x10\x00\x12\x11\n\rNOT_CONNECTED\x10\x01\"m\n\x10RollbackResponse\x12\x34\n\x06status\x18\x01 \x01(\x0e\x32$.saengra_api.RollbackResponse.Status\"#\n\x06Status\x12\x06\n\x02OK\x10\x00\x12\x11\n\rNOT_CONNECTED\x10\x01\"k\n\x0fObserveResponse\x12\x33\n\x06status\x18\x01 \x01(\x0e\x32#.saengra_api.ObserveResponse.Status\"#\n\x06Status\x12\x06\n\x02OK\x10\x00\x12\x11\n\rNOT_CONNECTED\x10\x01\"\xae\x01\n\x0c\x46indResponse\x12\x30\n\x06status\x18\x01 \x01(\x0e\x32 .saengra_api.FindResponse.Status\x12%\n\x08vertices\x18\x02 \x03(\x0b\x32\x13.saengra_api.Vertex\x12 \n\x05\x65\x64ges\x18\x03 \x03(\x0b\x32\x11.saengra_api.Edge\"#\n\x06Status\x12\x06\n\x02OK\x10\x00\x12\x11\n\rNOT_CONNECTED\x10\x01\"\x91\x01\n\rMatchResponse\x12\x31\n\x06status\x18\x01 \x01(\x0e\x32!.saengra_api.MatchResponse.Status\x12(\n\tsubgraphs\x18\x02 \x03(\x0b\x32\x15.saengra_api.Subgraph\"#\n\x06Status\x12\x06\n\x02OK\x10\x00\x12\x11\n\rNOT_CONNECTED\x10\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
-_builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, "messages_pb2", _globals)
+_builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'messages_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
-    DESCRIPTOR._loaded_options = None
-    _globals["_SUBGRAPH_REFSENTRY"]._loaded_options = None
-    _globals["_SUBGRAPH_REFSENTRY"]._serialized_options = b"8\001"
-    _globals["_COMMITRESPONSE_OBSERVATION_VARIABLESENTRY"]._loaded_options = None
-    _globals["_COMMITRESPONSE_OBSERVATION_VARIABLESENTRY"]._serialized_options = (
-        b"8\001"
-    )
-    _globals["_VERTEX"]._serialized_start = 31
-    _globals["_VERTEX"]._serialized_end = 73
-    _globals["_EDGE"]._serialized_start = 75
-    _globals["_EDGE"]._serialized_end = 164
-    _globals["_POSITION"]._serialized_start = 167
-    _globals["_POSITION"]._serialized_end = 301
-    _globals["_POSITION_POSITIONKIND"]._serialized_start = 266
-    _globals["_POSITION_POSITIONKIND"]._serialized_end = 301
-    _globals["_SUBGRAPH"]._serialized_start = 304
-    _globals["_SUBGRAPH"]._serialized_end = 593
-    _globals["_SUBGRAPH_REFSENTRY"]._serialized_start = 529
-    _globals["_SUBGRAPH_REFSENTRY"]._serialized_end = 593
-    _globals["_REQUEST"]._serialized_start = 596
-    _globals["_REQUEST"]._serialized_end = 941
-    _globals["_CONNECT"]._serialized_start = 943
-    _globals["_CONNECT"]._serialized_end = 970
-    _globals["_APPLYUPDATES"]._serialized_start = 973
-    _globals["_APPLYUPDATES"]._serialized_end = 1323
-    _globals["_APPLYUPDATES_UPDATE"]._serialized_start = 1041
-    _globals["_APPLYUPDATES_UPDATE"]._serialized_end = 1323
-    _globals["_APPLYUPDATES_UPDATE_UPDATEKIND"]._serialized_start = 1203
-    _globals["_APPLYUPDATES_UPDATE_UPDATEKIND"]._serialized_end = 1306
-    _globals["_COMMIT"]._serialized_start = 1325
-    _globals["_COMMIT"]._serialized_end = 1333
-    _globals["_APPLY"]._serialized_start = 1335
-    _globals["_APPLY"]._serialized_end = 1342
-    _globals["_ROLLBACK"]._serialized_start = 1344
-    _globals["_ROLLBACK"]._serialized_end = 1354
-    _globals["_OBSERVE"]._serialized_start = 1357
-    _globals["_OBSERVE"]._serialized_end = 1567
-    _globals["_OBSERVE_OBSERVER"]._serialized_start = 1419
-    _globals["_OBSERVE_OBSERVER"]._serialized_end = 1567
-    _globals["_FIND"]._serialized_start = 1570
-    _globals["_FIND"]._serialized_end = 1765
-    _globals["_MATCH"]._serialized_start = 1767
-    _globals["_MATCH"]._serialized_end = 1843
-    _globals["_RESPONSE"]._serialized_start = 1846
-    _globals["_RESPONSE"]._serialized_end = 2257
-    _globals["_CONNECTRESPONSE"]._serialized_start = 2259
-    _globals["_CONNECTRESPONSE"]._serialized_end = 2383
-    _globals["_CONNECTRESPONSE_STATUS"]._serialized_start = 2348
-    _globals["_CONNECTRESPONSE_STATUS"]._serialized_end = 2383
-    _globals["_APPLYUPDATESRESPONSE"]._serialized_start = 2385
-    _globals["_APPLYUPDATESRESPONSE"]._serialized_end = 2502
-    _globals["_APPLYUPDATESRESPONSE_STATUS"]._serialized_start = 2348
-    _globals["_APPLYUPDATESRESPONSE_STATUS"]._serialized_end = 2383
-    _globals["_COMMITRESPONSE"]._serialized_start = 2505
-    _globals["_COMMITRESPONSE"]._serialized_end = 3020
-    _globals["_COMMITRESPONSE_OBSERVATION"]._serialized_start = 2638
-    _globals["_COMMITRESPONSE_OBSERVATION"]._serialized_end = 2953
-    _globals["_COMMITRESPONSE_OBSERVATION_VARIABLESENTRY"]._serialized_start = 2820
-    _globals["_COMMITRESPONSE_OBSERVATION_VARIABLESENTRY"]._serialized_end = 2889
-    _globals["_COMMITRESPONSE_OBSERVATION_OBSERVATIONTYPE"]._serialized_start = 2891
-    _globals["_COMMITRESPONSE_OBSERVATION_OBSERVATIONTYPE"]._serialized_end = 2953
-    _globals["_COMMITRESPONSE_STATUS"]._serialized_start = 2955
-    _globals["_COMMITRESPONSE_STATUS"]._serialized_end = 3020
-    _globals["_APPLYRESPONSE"]._serialized_start = 3023
-    _globals["_APPLYRESPONSE"]._serialized_end = 3188
-    _globals["_APPLYRESPONSE_STATUS"]._serialized_start = 2348
-    _globals["_APPLYRESPONSE_STATUS"]._serialized_end = 2383
-    _globals["_ROLLBACKRESPONSE"]._serialized_start = 3190
-    _globals["_ROLLBACKRESPONSE"]._serialized_end = 3299
-    _globals["_ROLLBACKRESPONSE_STATUS"]._serialized_start = 2348
-    _globals["_ROLLBACKRESPONSE_STATUS"]._serialized_end = 2383
-    _globals["_OBSERVERESPONSE"]._serialized_start = 3301
-    _globals["_OBSERVERESPONSE"]._serialized_end = 3408
-    _globals["_OBSERVERESPONSE_STATUS"]._serialized_start = 2348
-    _globals["_OBSERVERESPONSE_STATUS"]._serialized_end = 2383
-    _globals["_FINDRESPONSE"]._serialized_start = 3411
-    _globals["_FINDRESPONSE"]._serialized_end = 3585
-    _globals["_FINDRESPONSE_STATUS"]._serialized_start = 2348
-    _globals["_FINDRESPONSE_STATUS"]._serialized_end = 2383
-    _globals["_MATCHRESPONSE"]._serialized_start = 3588
-    _globals["_MATCHRESPONSE"]._serialized_end = 3733
-    _globals["_MATCHRESPONSE_STATUS"]._serialized_start = 2348
-    _globals["_MATCHRESPONSE_STATUS"]._serialized_end = 2383
+  DESCRIPTOR._loaded_options = None
+  _globals['_SUBGRAPH_REFSENTRY']._loaded_options = None
+  _globals['_SUBGRAPH_REFSENTRY']._serialized_options = b'8\001'
+  _globals['_COMMITRESPONSE_OBSERVATION_VARIABLESENTRY']._loaded_options = None
+  _globals['_COMMITRESPONSE_OBSERVATION_VARIABLESENTRY']._serialized_options = b'8\001'
+  _globals['_VERTEX']._serialized_start=31
+  _globals['_VERTEX']._serialized_end=73
+  _globals['_EDGE']._serialized_start=75
+  _globals['_EDGE']._serialized_end=164
+  _globals['_POSITION']._serialized_start=167
+  _globals['_POSITION']._serialized_end=301
+  _globals['_POSITION_POSITIONKIND']._serialized_start=266
+  _globals['_POSITION_POSITIONKIND']._serialized_end=301
+  _globals['_SUBGRAPH']._serialized_start=304
+  _globals['_SUBGRAPH']._serialized_end=593
+  _globals['_SUBGRAPH_REFSENTRY']._serialized_start=529
+  _globals['_SUBGRAPH_REFSENTRY']._serialized_end=593
+  _globals['_REQUEST']._serialized_start=596
+  _globals['_REQUEST']._serialized_end=941
+  _globals['_CONNECT']._serialized_start=943
+  _globals['_CONNECT']._serialized_end=970
+  _globals['_APPLYUPDATES']._serialized_start=973
+  _globals['_APPLYUPDATES']._serialized_end=1323
+  _globals['_APPLYUPDATES_UPDATE']._serialized_start=1041
+  _globals['_APPLYUPDATES_UPDATE']._serialized_end=1323
+  _globals['_APPLYUPDATES_UPDATE_UPDATEKIND']._serialized_start=1203
+  _globals['_APPLYUPDATES_UPDATE_UPDATEKIND']._serialized_end=1306
+  _globals['_COMMIT']._serialized_start=1325
+  _globals['_COMMIT']._serialized_end=1333
+  _globals['_APPLY']._serialized_start=1335
+  _globals['_APPLY']._serialized_end=1342
+  _globals['_ROLLBACK']._serialized_start=1344
+  _globals['_ROLLBACK']._serialized_end=1354
+  _globals['_OBSERVE']._serialized_start=1357
+  _globals['_OBSERVE']._serialized_end=1591
+  _globals['_OBSERVE_OBSERVER']._serialized_start=1419
+  _globals['_OBSERVE_OBSERVER']._serialized_end=1591
+  _globals['_FIND']._serialized_start=1594
+  _globals['_FIND']._serialized_end=1789
+  _globals['_MATCH']._serialized_start=1791
+  _globals['_MATCH']._serialized_end=1867
+  _globals['_RESPONSE']._serialized_start=1870
+  _globals['_RESPONSE']._serialized_end=2281
+  _globals['_CONNECTRESPONSE']._serialized_start=2283
+  _globals['_CONNECTRESPONSE']._serialized_end=2407
+  _globals['_CONNECTRESPONSE_STATUS']._serialized_start=2372
+  _globals['_CONNECTRESPONSE_STATUS']._serialized_end=2407
+  _globals['_APPLYUPDATESRESPONSE']._serialized_start=2409
+  _globals['_APPLYUPDATESRESPONSE']._serialized_end=2526
+  _globals['_APPLYUPDATESRESPONSE_STATUS']._serialized_start=2372
+  _globals['_APPLYUPDATESRESPONSE_STATUS']._serialized_end=2407
+  _globals['_COMMITRESPONSE']._serialized_start=2529
+  _globals['_COMMITRESPONSE']._serialized_end=3103
+  _globals['_COMMITRESPONSE_OBSERVATION']._serialized_start=2662
+  _globals['_COMMITRESPONSE_OBSERVATION']._serialized_end=3036
+  _globals['_COMMITRESPONSE_OBSERVATION_VARIABLESENTRY']._serialized_start=2890
+  _globals['_COMMITRESPONSE_OBSERVATION_VARIABLESENTRY']._serialized_end=2959
+  _globals['_COMMITRESPONSE_OBSERVATION_OBSERVATIONTYPE']._serialized_start=2961
+  _globals['_COMMITRESPONSE_OBSERVATION_OBSERVATIONTYPE']._serialized_end=3023
+  _globals['_COMMITRESPONSE_STATUS']._serialized_start=3038
+  _globals['_COMMITRESPONSE_STATUS']._serialized_end=3103
+  _globals['_APPLYRESPONSE']._serialized_start=3106
+  _globals['_APPLYRESPONSE']._serialized_end=3271
+  _globals['_APPLYRESPONSE_STATUS']._serialized_start=2372
+  _globals['_APPLYRESPONSE_STATUS']._serialized_end=2407
+  _globals['_ROLLBACKRESPONSE']._serialized_start=3273
+  _globals['_ROLLBACKRESPONSE']._serialized_end=3382
+  _globals['_ROLLBACKRESPONSE_STATUS']._serialized_start=2372
+  _globals['_ROLLBACKRESPONSE_STATUS']._serialized_end=2407
+  _globals['_OBSERVERESPONSE']._serialized_start=3384
+  _globals['_OBSERVERESPONSE']._serialized_end=3491
+  _globals['_OBSERVERESPONSE_STATUS']._serialized_start=2372
+  _globals['_OBSERVERESPONSE_STATUS']._serialized_end=2407
+  _globals['_FINDRESPONSE']._serialized_start=3494
+  _globals['_FINDRESPONSE']._serialized_end=3668
+  _globals['_FINDRESPONSE_STATUS']._serialized_start=2372
+  _globals['_FINDRESPONSE_STATUS']._serialized_end=2407
+  _globals['_MATCHRESPONSE']._serialized_start=3671
+  _globals['_MATCHRESPONSE']._serialized_end=3816
+  _globals['_MATCHRESPONSE_STATUS']._serialized_start=2372
+  _globals['_MATCHRESPONSE_STATUS']._serialized_end=2407
 # @@protoc_insertion_point(module_scope)

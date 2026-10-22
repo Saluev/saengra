@@ -364,6 +364,115 @@ static PyObject* DirectAdapter_flush(DirectAdapterObject* self, PyObject* Py_UNU
     Py_RETURN_NONE;
 }
 
+// Python classes of saengra.graph that subgraphs are made of.
+struct SubgraphClasses {
+    PyObject* Subgraph = NULL;
+    PyObject* Position = NULL;
+    PyObject* Edge = NULL;
+    PyObject* Refs = NULL;
+
+    // Returns false, with a Python exception set, if the classes can't be imported.
+    bool import() {
+        PyObject* graph_module = PyImport_ImportModule("saengra.graph");
+        if (!graph_module) return false;
+        Subgraph = PyObject_GetAttrString(graph_module, "Subgraph");
+        Position = PyObject_GetAttrString(graph_module, "Position");
+        Edge = PyObject_GetAttrString(graph_module, "Edge");
+        Refs = PyObject_GetAttrString(graph_module, "Refs");
+        Py_DECREF(graph_module);
+        return Subgraph && Position && Edge && Refs;
+    }
+
+    ~SubgraphClasses() {
+        Py_XDECREF(Subgraph); Py_XDECREF(Position);
+        Py_XDECREF(Edge); Py_XDECREF(Refs);
+    }
+};
+
+static PyObject* position_to_python(DirectAdapterObject* self, const saengra::Position& position, const SubgraphClasses& classes) {
+    PyObject* vertex = vertex_id_to_python(self, position.vertex_id);
+    if (!vertex) return NULL;
+    const char* point = position.kind == saengra::PositionKind::CORE ? "." : "o";
+    PyObject* result = PyObject_CallFunction(classes.Position, "Os", vertex, point);
+    Py_DECREF(vertex);
+    return result;
+}
+
+// Converts a subgraph to a new saengra.graph.Subgraph.
+static PyObject* subgraph_to_python(DirectAdapterObject* self, const saengra::Subgraph& sg, const SubgraphClasses& classes) {
+    PyObject* start_pos = NULL;
+    PyObject* end_positions = NULL;
+    PyObject* vertices = NULL;
+    PyObject* edges = NULL;
+    PyObject* refs_dict = NULL;
+    PyObject* refs = NULL;
+    PyObject* result = NULL;
+
+    start_pos = position_to_python(self, sg.start_position, classes);
+    if (!start_pos) goto done;
+
+    end_positions = PyFrozenSet_New(NULL);
+    if (!end_positions) goto done;
+    for (const auto& pos : sg.end_positions) {
+        PyObject* end_pos = position_to_python(self, pos, classes);
+        if (!end_pos || PySet_Add(end_positions, end_pos) < 0) {
+            Py_XDECREF(end_pos);
+            goto done;
+        }
+        Py_DECREF(end_pos);
+    }
+
+    vertices = PyFrozenSet_New(NULL);
+    if (!vertices) goto done;
+    for (auto vid : sg.vertices) {
+        PyObject* v = vertex_id_to_python(self, vid);
+        if (!v || PySet_Add(vertices, v) < 0) {
+            Py_XDECREF(v);
+            goto done;
+        }
+        Py_DECREF(v);
+    }
+
+    edges = PyFrozenSet_New(NULL);
+    if (!edges) goto done;
+    for (const auto& e : sg.edges) {
+        PyObject* from_v = vertex_id_to_python(self, e.from);
+        PyObject* label = PyUnicode_FromString(e.label.text->c_str());
+        PyObject* to_v = vertex_id_to_python(self, e.to);
+        PyObject* py_edge = from_v && label && to_v
+            ? PyObject_CallFunction(classes.Edge, "OOO", from_v, label, to_v)
+            : NULL;
+        Py_XDECREF(from_v); Py_XDECREF(label); Py_XDECREF(to_v);
+        if (!py_edge || PySet_Add(edges, py_edge) < 0) {
+            Py_XDECREF(py_edge);
+            goto done;
+        }
+        Py_DECREF(py_edge);
+    }
+
+    refs_dict = PyDict_New();
+    if (!refs_dict) goto done;
+    for (const auto& [name, vid] : sg.refs.positives()) {
+        PyObject* key = PyUnicode_FromStringAndSize(name.data(), name.size());
+        PyObject* value = vertex_id_to_python(self, vid);
+        if (!key || !value || PyDict_SetItem(refs_dict, key, value) < 0) {
+            Py_XDECREF(key); Py_XDECREF(value);
+            goto done;
+        }
+        Py_DECREF(key); Py_DECREF(value);
+    }
+    refs = PyObject_CallFunction(classes.Refs, "O", refs_dict);
+    if (!refs) goto done;
+
+    result = PyObject_CallFunction(classes.Subgraph, "OOOOO", start_pos, end_positions, vertices, edges, refs);
+
+done:
+    Py_XDECREF(start_pos); Py_XDECREF(end_positions);
+    Py_XDECREF(vertices); Py_XDECREF(edges);
+    Py_XDECREF(refs_dict); Py_XDECREF(refs);
+    return result;
+}
+
 // Converts native observations to a new Python list of saengra.api.Observation.
 static PyObject* native_observations_to_python(DirectAdapterObject* self, const std::vector<saengra::NativeObservation>& native_obs) {
     // Import Python types for observations
@@ -379,6 +488,9 @@ static PyObject* native_observations_to_python(DirectAdapterObject* self, const 
         Py_XDECREF(ObservationType_class);
         return NULL;
     }
+
+    // Subgraph classes are only imported if some observer requested subgraphs.
+    std::optional<SubgraphClasses> subgraph_classes;
 
     PyObject* obs_list = PyList_New(0);
     for (const auto& obs : native_obs) {
@@ -405,11 +517,28 @@ static PyObject* native_observations_to_python(DirectAdapterObject* self, const 
             case saengra::NativeObservationType::ON_DELETE: obs_type_value = 2; break;
         }
 
-        PyObject* obs_type = PyObject_CallFunction(ObservationType_class, "i", obs_type_value);
-        PyObject* observation = PyObject_CallFunction(Observation_class, "sOO",
-            obs.observer_id.c_str(), obs_type, variables);
+        PyObject* subgraph = Py_None;
+        Py_INCREF(subgraph);
+        if (obs.subgraph.has_value()) {
+            if (!subgraph_classes.has_value() && !subgraph_classes.emplace().import()) {
+                Py_DECREF(subgraph); Py_DECREF(variables); Py_DECREF(obs_list);
+                Py_DECREF(Observation_class); Py_DECREF(ObservationType_class);
+                return NULL;
+            }
+            Py_DECREF(subgraph);
+            subgraph = subgraph_to_python(self, *obs.subgraph, *subgraph_classes);
+            if (!subgraph) {
+                Py_DECREF(variables); Py_DECREF(obs_list);
+                Py_DECREF(Observation_class); Py_DECREF(ObservationType_class);
+                return NULL;
+            }
+        }
 
-        Py_DECREF(obs_type); Py_DECREF(variables);
+        PyObject* obs_type = PyObject_CallFunction(ObservationType_class, "i", obs_type_value);
+        PyObject* observation = PyObject_CallFunction(Observation_class, "sOOO",
+            obs.observer_id.c_str(), obs_type, variables, subgraph);
+
+        Py_XDECREF(obs_type); Py_DECREF(variables); Py_DECREF(subgraph);
 
         if (!observation) {
             Py_DECREF(obs_list);
@@ -770,10 +899,20 @@ static PyObject* DirectAdapter_observe(DirectAdapterObject* self, PyObject* args
         bool on_change = PyObject_IsTrue(on_change_obj);
         bool on_delete = PyObject_IsTrue(on_delete_obj);
 
+        PyObject* with_subgraphs_obj = PyObject_GetAttrString(observer, "with_subgraphs");
+        if (!with_subgraphs_obj) {
+            Py_DECREF(id_obj); Py_DECREF(expression_obj); Py_DECREF(placeholder_values_obj);
+            Py_DECREF(on_create_obj); Py_DECREF(on_change_obj); Py_DECREF(on_delete_obj);
+            Py_DECREF(observer); Py_DECREF(iter);
+            return NULL;
+        }
+        bool with_subgraphs = PyObject_IsTrue(with_subgraphs_obj);
+        Py_DECREF(with_subgraphs_obj);
+
         try {
             self->observer_container->register_native(
                 id, expression, placeholder_values,
-                on_create, on_change, on_delete
+                on_create, on_change, on_delete, with_subgraphs
             );
         } catch (const std::invalid_argument& e) {
             PyErr_SetString(PyExc_ValueError, e.what());
@@ -853,121 +992,21 @@ static PyObject* DirectAdapter_match(DirectAdapterObject* self, PyObject* args) 
     }
     const saengra::QuerySet& result = *match_result;
 
-    // Import Python types
-    PyObject* graph_module = PyImport_ImportModule("saengra.graph");
-    if (!graph_module) return NULL;
-
-    PyObject* Subgraph_class = PyObject_GetAttrString(graph_module, "Subgraph");
-    PyObject* Position_class = PyObject_GetAttrString(graph_module, "Position");
-    PyObject* Edge_class = PyObject_GetAttrString(graph_module, "Edge");
-    PyObject* Refs_class = PyObject_GetAttrString(graph_module, "Refs");
-    Py_DECREF(graph_module);
-
-    if (!Subgraph_class || !Position_class || !Edge_class || !Refs_class) {
-        Py_XDECREF(Subgraph_class); Py_XDECREF(Position_class);
-        Py_XDECREF(Edge_class); Py_XDECREF(Refs_class);
-        return NULL;
-    }
+    SubgraphClasses classes;
+    if (!classes.import()) return NULL;
 
     PyObject* subgraphs_list = PyList_New(0);
+    if (!subgraphs_list) return NULL;
     for (const auto& sg : result.subgraphs) {
-        // Build start position
-        PyObject* start_vertex = vertex_id_to_python(self, sg.start_position.vertex_id);
-        const char* start_point = sg.start_position.kind == saengra::PositionKind::CORE ? "." : "o";
-        PyObject* start_pos = PyObject_CallFunction(Position_class, "Os", start_vertex, start_point);
-        Py_XDECREF(start_vertex);
-        if (!start_pos) goto match_error;
-
-        {
-            // Build end positions
-            PyObject* end_positions = PyFrozenSet_New(NULL);
-            for (const auto& pos : sg.end_positions) {
-                PyObject* end_vertex = vertex_id_to_python(self, pos.vertex_id);
-                const char* end_point = pos.kind == saengra::PositionKind::CORE ? "." : "o";
-                PyObject* end_pos = PyObject_CallFunction(Position_class, "Os", end_vertex, end_point);
-                Py_XDECREF(end_vertex);
-                if (!end_pos) {
-                    Py_DECREF(end_positions); Py_DECREF(start_pos);
-                    goto match_error;
-                }
-                PySet_Add(end_positions, end_pos);
-                Py_DECREF(end_pos);
-            }
-
-            // Build vertices
-            PyObject* vertices = PyFrozenSet_New(NULL);
-            for (auto vid : sg.vertices) {
-                PyObject* v = vertex_id_to_python(self, vid);
-                if (!v) {
-                    Py_DECREF(vertices); Py_DECREF(end_positions); Py_DECREF(start_pos);
-                    goto match_error;
-                }
-                PySet_Add(vertices, v);
-                Py_DECREF(v);
-            }
-
-            // Build edges
-            PyObject* edges = PyFrozenSet_New(NULL);
-            for (const auto& e : sg.edges) {
-                PyObject* from_v = vertex_id_to_python(self, e.from);
-                PyObject* label = PyUnicode_FromString(e.label.text->c_str());
-                PyObject* to_v = vertex_id_to_python(self, e.to);
-                if (!from_v || !label || !to_v) {
-                    Py_XDECREF(from_v); Py_XDECREF(label); Py_XDECREF(to_v);
-                    Py_DECREF(edges); Py_DECREF(vertices);
-                    Py_DECREF(end_positions); Py_DECREF(start_pos);
-                    goto match_error;
-                }
-                PyObject* py_edge = PyObject_CallFunction(Edge_class, "OOO", from_v, label, to_v);
-                Py_DECREF(from_v); Py_DECREF(label); Py_DECREF(to_v);
-                if (!py_edge) {
-                    Py_DECREF(edges); Py_DECREF(vertices);
-                    Py_DECREF(end_positions); Py_DECREF(start_pos);
-                    goto match_error;
-                }
-                PySet_Add(edges, py_edge);
-                Py_DECREF(py_edge);
-            }
-
-            // Build refs
-            PyObject* refs_dict = PyDict_New();
-            for (const auto& [name, vid] : sg.refs.positives()) {
-                PyObject* key = PyUnicode_FromStringAndSize(name.data(), name.size());
-                PyObject* value = vertex_id_to_python(self, vid);
-                if (!key || !value) {
-                    Py_XDECREF(key); Py_XDECREF(value);
-                    Py_DECREF(refs_dict); Py_DECREF(edges); Py_DECREF(vertices);
-                    Py_DECREF(end_positions); Py_DECREF(start_pos);
-                    goto match_error;
-                }
-                PyDict_SetItem(refs_dict, key, value);
-                Py_DECREF(key); Py_DECREF(value);
-            }
-            PyObject* refs = PyObject_CallFunction(Refs_class, "O", refs_dict);
-            Py_DECREF(refs_dict);
-
-            // Create Subgraph
-            PyObject* subgraph = PyObject_CallFunction(Subgraph_class, "OOOOO",
-                start_pos, end_positions, vertices, edges, refs);
-            Py_DECREF(start_pos); Py_DECREF(end_positions);
-            Py_DECREF(vertices); Py_DECREF(edges); Py_DECREF(refs);
-
-            if (!subgraph) goto match_error;
-
-            PyList_Append(subgraphs_list, subgraph);
-            Py_DECREF(subgraph);
+        PyObject* subgraph = subgraph_to_python(self, sg, classes);
+        if (!subgraph || PyList_Append(subgraphs_list, subgraph) < 0) {
+            Py_XDECREF(subgraph);
+            Py_DECREF(subgraphs_list);
+            return NULL;
         }
+        Py_DECREF(subgraph);
     }
-
-    Py_DECREF(Subgraph_class); Py_DECREF(Position_class);
-    Py_DECREF(Edge_class); Py_DECREF(Refs_class);
     return subgraphs_list;
-
-match_error:
-    Py_DECREF(subgraphs_list);
-    Py_DECREF(Subgraph_class); Py_DECREF(Position_class);
-    Py_DECREF(Edge_class); Py_DECREF(Refs_class);
-    return NULL;
 }
 
 // ============================================================================

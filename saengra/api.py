@@ -13,6 +13,7 @@ class Observer:
     on_create: bool = False
     on_change: bool = False
     on_delete: bool = False
+    with_subgraphs: bool = False
 
 
 class ObservationType(Enum):
@@ -26,6 +27,7 @@ class Observation:
     observer_id: str
     type: ObservationType
     variables: dict[str, Primitive]
+    subgraph: Subgraph | None  # only returned if observer requested it
 
 
 class CommitStatus(Enum):

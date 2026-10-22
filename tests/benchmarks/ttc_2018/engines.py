@@ -143,22 +143,22 @@ class SaengraTupleEngine(_SaengraBase):
 
 class SaengraAggregateEngine(_SaengraBase):
     """
-    One `(all:)` observer per scored entity, as Saengra is meant to be used. Observer callbacks
-    only receive refs, not the matched subgraph, so the handler has to match it again.
+    One `(all:)` observer per scored entity, as Saengra is meant to be used. The handlers
+    receive the matched subgraph and score it as a whole.
     """
 
     def __init__(self, query: str) -> None:
+        from saengra.graph import Subgraph
         from saengra.observer import observer
 
         super().__init__(query)
-        env, scorer = self.env, self.scorer
+        scorer = self.scorer
         if query == "Q1":
             body = "(all: <post- Comment (maybe: <likes- User))"
             posts = observer(f"Post as p {body}", dont_register=True)
 
             @posts.on_create_or_change
-            def on_post_changed(p: Post) -> None:
-                (sg,) = env.match_subgrapghs(f"? {body}", p)
+            def on_post_changed(p: Post, sg: Subgraph) -> None:
                 comments = sum(1 for v in sg.vertices if isinstance(v, Comment))
                 likes = sum(1 for e in sg.edges if e.label == "likes")
                 scorer.set(p.id, 10 * comments + likes)
@@ -169,8 +169,7 @@ class SaengraAggregateEngine(_SaengraBase):
             comments = observer(f"Comment as c {body}", dont_register=True)
 
             @comments.on_create_or_change
-            def on_comment_changed(c: Comment) -> None:
-                (sg,) = env.match_subgrapghs(f"? as c {body}", c)
+            def on_comment_changed(c: Comment, sg: Subgraph) -> None:
                 local = ComponentsScorer()
                 for v in sg.vertices:
                     if isinstance(v, User):

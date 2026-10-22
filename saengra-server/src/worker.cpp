@@ -433,57 +433,8 @@ void Worker::handleMatch(const saengra_api::Match& request, saengra_api::MatchRe
     QuerySet result = matcher.match(query, start_positions);
 
     // Convert results to protobuf
-    const auto& vertices_container = current_env_->graph.get_vertices();
     for (const Subgraph& subgraph : result.subgraphs) {
-        auto* proto_subgraph = response.add_subgraphs();
-
-        // Set start position
-        auto* proto_start = proto_subgraph->mutable_start_position();
-        const auto start_vertex = *subgraph.start_position.vertex_id;
-        proto_start->mutable_vertex()->set_type_name(*start_vertex.type_name.text);
-        proto_start->mutable_vertex()->set_value(start_vertex.value);
-        proto_start->set_kind(subgraph.start_position.kind == PositionKind::CORE
-            ? saengra_api::Position_PositionKind_CORE
-            : saengra_api::Position_PositionKind_ORBIT);
-
-        // Set end positions
-        for (const Position& end_pos : subgraph.end_positions) {
-            auto* proto_end = proto_subgraph->add_end_positions();
-            const auto end_vertex = *end_pos.vertex_id;
-            proto_end->mutable_vertex()->set_type_name(*end_vertex.type_name.text);
-            proto_end->mutable_vertex()->set_value(end_vertex.value);
-            proto_end->set_kind(end_pos.kind == PositionKind::CORE
-                ? saengra_api::Position_PositionKind_CORE
-                : saengra_api::Position_PositionKind_ORBIT);
-        }
-
-        // Set vertices
-        for (VertexID vid : subgraph.vertices) {
-            const auto vertex = *vid;
-            auto* proto_vertex = proto_subgraph->add_vertices();
-            proto_vertex->set_type_name(*vertex.type_name.text);
-            proto_vertex->set_value(vertex.value);
-        }
-
-        // Set edges
-        for (const Edge& edge : subgraph.edges) {
-            const auto& from_vertex = *edge.from;
-            const auto& to_vertex = *edge.to;
-            auto* proto_edge = proto_subgraph->add_edges();
-            proto_edge->mutable_from()->set_type_name(*from_vertex.type_name.text);
-            proto_edge->mutable_from()->set_value(from_vertex.value);
-            proto_edge->set_label(*edge.label.text);
-            proto_edge->mutable_to()->set_type_name(*to_vertex.type_name.text);
-            proto_edge->mutable_to()->set_value(to_vertex.value);
-        }
-
-        // Set refs
-        for (const auto& [name, vid] : subgraph.refs.positives()) {
-            const auto& ref_vertex = *vid;
-            auto& proto_refs = *proto_subgraph->mutable_refs();
-            proto_refs[name].set_type_name(*ref_vertex.type_name.text);
-            proto_refs[name].set_value(ref_vertex.value);
-        }
+        convert_to_proto_subgraph(subgraph, *response.add_subgraphs());
     }
 
     spdlog::info("Matched {} subgraphs", response.subgraphs_size());
