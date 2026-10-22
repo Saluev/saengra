@@ -23,16 +23,16 @@ protected:
 
 TEST_F(PlannerTest, FirstOccurrenceSetsRefAndNextOnesMatchIt) {
     EXPECT_EQ(plan("user as u -friend> user as f -friend> u"),
-              "Concatenation(Path(user as u -friend-> user as f), EdgeToVertex(-friend-> * == u))");
+              "PathToVertex(user as u -friend-> user as f -friend-> * == u)");
 }
 
 TEST_F(PlannerTest, LeadingReferenceSetsRef) {
-    EXPECT_EQ(plan("x -c> * as x"), "Concatenation(Vertex(* as x), EdgeToVertex(-c-> * == x))");
+    EXPECT_EQ(plan("x -c> * as x"), "PathToVertex(* as x -c-> * == x)");
 }
 
 TEST_F(PlannerTest, RefSetInAllAlternativesIsBoundAfterThem) {
     EXPECT_EQ(plan("? (-a> * as x | -b> * as x) -c> x"),
-              "Concatenation(Vertex(?), Or(Path(-a-> * as x), Path(-b-> * as x)), EdgeToVertex(-c-> * == x))");
+              "Concatenation(Vertex(?), Or(Path(-a-> * as x), Path(-b-> * as x)), PathToVertex(-c-> * == x))");
 }
 
 TEST_F(PlannerTest, RefSetInSomeAlternativesIsNotBoundAfterThem) {
@@ -42,7 +42,7 @@ TEST_F(PlannerTest, RefSetInSomeAlternativesIsNotBoundAfterThem) {
 
 TEST_F(PlannerTest, AndOperandsDontSeeRefsOfEachOtherButRefsAreBoundAfterThem) {
     EXPECT_EQ(plan("? (-a> x & -b> * as x) -c> x"),
-              "Concatenation(Vertex(?), And(Path(-a-> * as x), Path(-b-> * as x)), EdgeToVertex(-c-> * == x))");
+              "Concatenation(Vertex(?), And(Path(-a-> * as x), Path(-b-> * as x)), PathToVertex(-c-> * == x))");
 }
 
 TEST_F(PlannerTest, RefSetInOptionalBranchIsNotBoundAfterIt) {
@@ -57,17 +57,17 @@ TEST_F(PlannerTest, RefExcludedByNegationIsNotBoundAfterIt) {
 
 TEST_F(PlannerTest, RefSetInLookaheadIsBoundAfterIt) {
     EXPECT_EQ(plan("? (?= -a> * as x) -b> x"),
-              "Concatenation(Vertex(?), If(Path(-a-> * as x)), EdgeToVertex(-b-> * == x))");
+              "Concatenation(Vertex(?), If(Path(-a-> * as x)), PathToVertex(-b-> * == x))");
 }
 
 TEST_F(PlannerTest, RefSetInSkipIsBoundAfterIt) {
     EXPECT_EQ(plan("? (?: -a> * as x) -b> x"),
-              "Concatenation(Vertex(?), Skip(Path(-a-> * as x)), EdgeToVertex(-b-> * == x))");
+              "Concatenation(Vertex(?), Skip(Path(-a-> * as x)), PathToVertex(-b-> * == x))");
 }
 
 TEST_F(PlannerTest, RefSetInAllIsBoundAfterIt) {
     EXPECT_EQ(plan("? (all: -a> * as x) -b> x"),
-              "Concatenation(Vertex(?), All(Path(-a-> * as x)), EdgeToVertex(-b-> * == x))");
+              "Concatenation(Vertex(?), All(Path(-a-> * as x)), PathToVertex(-b-> * == x))");
 }
 
 // ============================================================================
@@ -101,12 +101,22 @@ TEST_F(PlannerTest, SingleVertexIsNotPath) {
 }
 
 TEST_F(PlannerTest, EdgeToPlaceholder) {
-    EXPECT_EQ(plan("unit -owned_by> ?"), "Concatenation(Vertex(unit), EdgeToVertex(-owned_by-> ?))");
+    EXPECT_EQ(plan("unit -owned_by> ?"), "PathToVertex(unit -owned_by-> ?)");
 }
 
 TEST_F(PlannerTest, EdgeToMatchedRef) {
     EXPECT_EQ(plan("user as u -friend> user -friend> u -friend> user"),
-              "Concatenation(Path(user as u -friend-> user), EdgeToVertex(-friend-> * == u), Path(-friend-> user))");
+              "Concatenation(PathToVertex(user as u -friend-> user -friend-> * == u), Path(-friend-> user))");
+}
+
+TEST_F(PlannerTest, PathToPlaceholder) {
+    EXPECT_EQ(plan("Point as p (?= -in> Drawing -stage> ?)"),
+              "Concatenation(Vertex(Point as p), IfWithoutSetRef(PathToVertex(-in-> Drawing -stage-> ?)))");
+}
+
+TEST_F(PlannerTest, LongPathBeforeKnownVertexIsSplit) {
+    EXPECT_EQ(plan("user as u -friend> user -friend> user -friend> u"),
+              "Concatenation(Path(user as u -friend-> user -friend-> user), PathToVertex(-friend-> * == u))");
 }
 
 TEST_F(PlannerTest, EdgeToSetRefIsPath) {
@@ -123,7 +133,7 @@ TEST_F(PlannerTest, AndWithoutSetRef) {
 
 TEST_F(PlannerTest, AndMatchingBoundRefsDoesntSetRefs) {
     EXPECT_EQ(plan("? as x (-a> x & -b> *)"),
-              "Concatenation(Vertex(? as x), AndWithoutSetRef(EdgeToVertex(-a-> * == x), Path(-b-> *)))");
+              "Concatenation(Vertex(? as x), AndWithoutSetRef(PathToVertex(-a-> * == x), Path(-b-> *)))");
 }
 
 TEST_F(PlannerTest, AndSettingRef) {
@@ -151,7 +161,7 @@ TEST_F(PlannerTest, AllSettingRef) {
 }
 
 TEST_F(PlannerTest, IfWithoutSetRef) {
-    EXPECT_EQ(plan("? as x (?= -a> x)"), "Concatenation(Vertex(? as x), IfWithoutSetRef(EdgeToVertex(-a-> * == x)))");
+    EXPECT_EQ(plan("? as x (?= -a> x)"), "Concatenation(Vertex(? as x), IfWithoutSetRef(PathToVertex(-a-> * == x)))");
 }
 
 TEST_F(PlannerTest, IfSettingRef) {
@@ -170,7 +180,7 @@ TEST_F(PlannerTest, UnlessSettingLocalRef) {
 
 TEST_F(PlannerTest, UnlessMatchingBoundSharedRef) {
     EXPECT_EQ(plan("? -a> * as x (?! -b> x)"),
-              "Concatenation(Path(? -a-> * as x), UnlessWithoutSetNonLocalRef(EdgeToVertex(-b-> * == x)))");
+              "Concatenation(Path(? -a-> * as x), UnlessWithoutSetNonLocalRef(PathToVertex(-b-> * == x)))");
 }
 
 TEST_F(PlannerTest, UnlessSettingSharedRef) {

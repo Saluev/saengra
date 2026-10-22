@@ -199,16 +199,22 @@ private:
         return vertex.placeholder_idx.has_value() || vertex.match_ref.has_value();
     }
 
-    // Splits a sequence of vertices and edges into edges to known vertices and alternating paths.
+    // Splits a sequence of vertices and edges into alternating paths, which may end with an edge to
+    // a known vertex.
     static void add_paths(std::vector<std::variant<MatchVertex, MatchEdge>> items, Plans& plans) {
         std::vector<std::variant<MatchVertex, MatchEdge>> path;
         for (size_t i = 0; i < items.size(); ++i) {
             auto* edge = std::get_if<MatchEdge>(&items[i]);
             auto* next_vertex = i + 1 < items.size() ? std::get_if<MatchVertex>(&items[i + 1]) : nullptr;
             if (edge != nullptr && next_vertex != nullptr && is_known(*next_vertex)) {
-                add_path(std::move(path), plans);
+                MatchPath prefix{PositionKind::ORBIT, {}, {}};
+                if (!path.empty() && std::holds_alternative<MatchVertex>(path.back()) && path.size() + 2 <= MatchPath::max_length) {
+                    prefix = make_path(std::move(path));
+                } else {
+                    add_path(std::move(path), plans);
+                }
                 path.clear();
-                plans.push_back(Plan{MatchEdgeToVertex{std::move(*edge), std::move(*next_vertex)}});
+                plans.push_back(Plan{MatchPathToVertex{std::move(prefix), std::move(*edge), std::move(*next_vertex)}});
                 ++i;
                 continue;
             }
@@ -230,6 +236,10 @@ private:
             std::visit([&plans](auto& item) { plans.push_back(Plan{std::move(item)}); }, items.front());
             return;
         }
+        plans.push_back(Plan{make_path(std::move(items))});
+    }
+
+    static MatchPath make_path(std::vector<std::variant<MatchVertex, MatchEdge>> items) {
         MatchPath path;
         path.start = std::holds_alternative<MatchVertex>(items.front()) ? PositionKind::CORE : PositionKind::ORBIT;
         for (auto& item : items) {
@@ -239,7 +249,7 @@ private:
                 path.edges.push_back(std::move(std::get<MatchEdge>(item)));
             }
         }
-        plans.push_back(Plan{std::move(path)});
+        return path;
     }
 };
 

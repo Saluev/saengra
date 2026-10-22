@@ -59,6 +59,17 @@ namespace {
     std::string edge_to_string(const MatchEdge& edge) {
         return EdgeExpr{edge.labels, edge.direction}.to_string();
     }
+
+    std::string path_to_string(const MatchPath& path) {
+        std::ostringstream oss;
+        const bool from_core = path.start == PositionKind::CORE;
+        const size_t length = path.vertices.size() + path.edges.size();
+        for (size_t i = 0; i < length; ++i) {
+            if (i > 0) oss << " ";
+            oss << ((i % 2 == 0) == from_core ? vertex_to_string(path.vertices[i / 2]) : edge_to_string(path.edges[i / 2]));
+        }
+        return oss.str();
+    }
 }
 
 std::string Plan::to_string() const {
@@ -109,29 +120,8 @@ ConstNestedPlans MatchNoop::iter_nested_plans() const {
     return {};
 }
 
-std::string MatchEdgeToVertex::to_string() const {
-    return "EdgeToVertex(" + edge_to_string(edge) + " " + vertex_to_string(vertex) + ")";
-}
-
-NestedPlans MatchEdgeToVertex::iter_nested_plans() {
-    return {};
-}
-
-ConstNestedPlans MatchEdgeToVertex::iter_nested_plans() const {
-    return {};
-}
-
 std::string MatchPath::to_string() const {
-    std::ostringstream oss;
-    oss << "Path(";
-    const bool from_core = start == PositionKind::CORE;
-    const size_t length = vertices.size() + edges.size();
-    for (size_t i = 0; i < length; ++i) {
-        if (i > 0) oss << " ";
-        oss << ((i % 2 == 0) == from_core ? vertex_to_string(vertices[i / 2]) : edge_to_string(edges[i / 2]));
-    }
-    oss << ")";
-    return oss.str();
+    return "Path(" + path_to_string(*this) + ")";
 }
 
 NestedPlans MatchPath::iter_nested_plans() {
@@ -139,6 +129,19 @@ NestedPlans MatchPath::iter_nested_plans() {
 }
 
 ConstNestedPlans MatchPath::iter_nested_plans() const {
+    return {};
+}
+
+std::string MatchPathToVertex::to_string() const {
+    const auto prefix = path_to_string(path);
+    return "PathToVertex(" + (prefix.empty() ? "" : prefix + " ") + edge_to_string(edge) + " " + vertex_to_string(vertex) + ")";
+}
+
+NestedPlans MatchPathToVertex::iter_nested_plans() {
+    return {};
+}
+
+ConstNestedPlans MatchPathToVertex::iter_nested_plans() const {
     return {};
 }
 

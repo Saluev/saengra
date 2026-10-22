@@ -101,98 +101,36 @@ public:
         dest_.subgraphs.push_back(SubgraphDraft{start_.origin, {start_.position}, {}, {}, start_.refs});
     }
 
-    void operator()(const MatchEdgeToVertex& plan) const {
-        if (start_.position.kind != PositionKind::ORBIT) {
-            return;
+    void operator()(const MatchPathToVertex& plan) const {
+        auto lookup = [this, &plan](const Position& start_position, const Position& position, const Refs& refs,
+                                    const std::vector<VertexID>& vertices, const std::vector<Edge>& edges) {
+            return match_edge_to_vertex(plan.edge, plan.vertex, start_position, position, refs, vertices, edges);
+        };
+        const size_t length = plan.path.vertices.size() + plan.path.edges.size();
+        const bool from_core = plan.path.start == PositionKind::CORE;
+        switch (length) {
+            case 0: lookup(start_.position, start_.position, start_.refs, {}, {}); return;
+            case 1: return from_core ? match_path<1, true>(plan.path, lookup) : match_path<1, false>(plan.path, lookup);
+            case 2: return from_core ? match_path<2, true>(plan.path, lookup) : match_path<2, false>(plan.path, lookup);
+            case 3: return from_core ? match_path<3, true>(plan.path, lookup) : match_path<3, false>(plan.path, lookup);
         }
-
-        std::optional<VertexID> to;
-        if (plan.vertex.placeholder_idx.has_value()) {
-            const auto placeholder_idx = plan.vertex.placeholder_idx.value();
-            to = query_.placeholder_value_ids[placeholder_idx];
-            if (!to.has_value()) {
-                // Placeholder is not in graph (and never has been) — so no edge can lead to it until it's added.
-                dest_.deps.emplace_back(ParticularVertex(query_.placeholder_values[placeholder_idx]), start_.origin);
-                return;
-            }
-        } else {
-            for (const auto& [name, vertex_id] : start_.refs.positives()) {
-                if (name == plan.vertex.match_ref.value()) {
-                    to = vertex_id;
-                    break;
-                }
-            }
-            if (!to.has_value()) {
-                // The planner guarantees the ref is set, but just in case, match it as a path.
-                (*this)(MatchPath{PositionKind::ORBIT, {plan.edge}, {plan.vertex}});
-                return;
-            }
-        }
-
-        const VertexID from = start_.position.vertex_id;
-        add_particular_edge_deps(plan.edge, from, *to);
-        const auto& edges = query_.graph.get_edges();
-        std::vector<Edge> matched;
-        switch (plan.edge.direction) {
-            case Direction::Forward:
-                matched = edges.iter_present_from_vertex_to_vertex(from, *to, plan.edge.labels);
-                break;
-            case Direction::Backward:
-                matched = edges.iter_present_from_vertex_to_vertex(*to, from, plan.edge.labels);
-                break;
-            case Direction::Any: {
-                matched = edges.iter_present_from_vertex_to_vertex(from, *to, plan.edge.labels);
-                auto backward = edges.iter_present_from_vertex_to_vertex(*to, from, plan.edge.labels);
-                matched.insert(matched.end(), backward.begin(), backward.end());
-                break;
-            }
-            case Direction::Both: {
-                auto forward = edges.iter_present_from_vertex_to_vertex(from, *to, plan.edge.labels);
-                auto backward = reverse_all(edges.iter_present_from_vertex_to_vertex(*to, from, plan.edge.labels));
-                for (const Edge& edge : sort_and_intersect(forward, backward)) {
-                    matched.push_back(edge);
-                    matched.push_back(edge.reverse());
-                }
-                break;
-            }
-        }
-        if (matched.empty()) {
-            return;
-        }
-
-        Refs new_refs;
-        const auto match = match_vertex(plan.vertex, Position(*to, PositionKind::CORE), start_.refs, new_refs);
-        if (match == VertexMatch::None) {
-            return;
-        }
-        const Refs& refs = match == VertexMatch::NewRefs ? new_refs : start_.refs;
-        const size_t edges_per_match = plan.edge.direction == Direction::Both ? 2 : 1;
-        for (size_t i = 0; i < matched.size(); i += edges_per_match) {
-            auto& subgraph = dest_.subgraphs.emplace_back(SubgraphDraft{
-                start_.position,
-                {Position(*to, PositionKind::ORBIT)},
-                {},
-                {},
-                refs,
-            });
-            if constexpr (collects_contents) {
-                subgraph.vertices.push_back(*to);
-                subgraph.edges.assign(matched.begin() + i, matched.begin() + i + edges_per_match);
-            }
-            if (enough()) {
-                return;
-            }
-        }
+        static_assert(MatchPath::max_length == 5);
+        throw std::runtime_error("unsupported path length " + std::to_string(length) + " before an edge to a known vertex");
     }
 
     void operator()(const MatchPath& plan) const {
+        auto emit = [this](const Position& start_position, const Position& position, const Refs& refs,
+                           const std::vector<VertexID>& vertices, const std::vector<Edge>& edges) {
+            dest_.subgraphs.push_back(SubgraphDraft{start_position, {position}, vertices, edges, refs});
+            return enough();
+        };
         const size_t length = plan.vertices.size() + plan.edges.size();
         const bool from_core = plan.start == PositionKind::CORE;
         switch (length) {
-            case 2: return from_core ? match_path<2, true>(plan) : match_path<2, false>(plan);
-            case 3: return from_core ? match_path<3, true>(plan) : match_path<3, false>(plan);
-            case 4: return from_core ? match_path<4, true>(plan) : match_path<4, false>(plan);
-            case 5: return from_core ? match_path<5, true>(plan) : match_path<5, false>(plan);
+            case 2: return from_core ? match_path<2, true>(plan, emit) : match_path<2, false>(plan, emit);
+            case 3: return from_core ? match_path<3, true>(plan, emit) : match_path<3, false>(plan, emit);
+            case 4: return from_core ? match_path<4, true>(plan, emit) : match_path<4, false>(plan, emit);
+            case 5: return from_core ? match_path<5, true>(plan, emit) : match_path<5, false>(plan, emit);
         }
         static_assert(MatchPath::max_length == 5);
         throw std::runtime_error("unsupported path length " + std::to_string(length));
@@ -667,31 +605,26 @@ private:
         }
     }
 
-    // Matches path items in nested loops, keeping the vertices and edges matched so far.
-    template<size_t N, bool FromCore>
-    void match_path(const MatchPath& plan) const {
+    // Matches path items in nested loops, keeping the vertices and edges matched so far (only in Normal
+    // mode). Once all items match, calls last(start_position, position, refs, vertices, edges), which
+    // returns true once enough subgraphs are matched.
+    template<size_t N, bool FromCore, typename Last>
+    void match_path(const MatchPath& plan, Last& last) const {
         std::vector<VertexID> vertices;
         std::vector<Edge> edges;
         if constexpr (collects_contents) {
-            vertices.reserve(plan.vertices.size());
-            edges.reserve(plan.edges.size() * 2);
+            vertices.reserve(plan.vertices.size() + 1);
+            edges.reserve(plan.edges.size() * 2 + 2);
         }
-        match_path_item<0, N, FromCore>(plan, start_.position, start_.refs, vertices, edges);
+        match_path_item<0, N, FromCore>(plan, start_.position, start_.refs, vertices, edges, last);
     }
 
     // Returns true once enough subgraphs are matched.
-    template<size_t I, size_t N, bool FromCore>
+    template<size_t I, size_t N, bool FromCore, typename Last>
     bool match_path_item(const MatchPath& plan, const Position& position, const Refs& refs,
-                         std::vector<VertexID>& vertices, std::vector<Edge>& edges) const {
+                         std::vector<VertexID>& vertices, std::vector<Edge>& edges, Last& last) const {
         if constexpr (I == N) {
-            dest_.subgraphs.push_back(SubgraphDraft{
-                FromCore ? start_.origin : start_.position,
-                {position},
-                vertices,
-                edges,
-                refs,
-            });
-            return enough();
+            return last(FromCore ? start_.origin : start_.position, position, refs, vertices, edges);
         } else if constexpr ((I % 2 == 0) == FromCore) {
             Refs new_refs;
             const auto match = match_vertex(plan.vertices[I / 2], position, refs, new_refs);
@@ -702,7 +635,7 @@ private:
                 vertices.push_back(position.vertex_id);
             }
             const bool stop = match_path_item<I + 1, N, FromCore>(
-                plan, position.with_kind(PositionKind::ORBIT), match == VertexMatch::NewRefs ? new_refs : refs, vertices, edges);
+                plan, position.with_kind(PositionKind::ORBIT), match == VertexMatch::NewRefs ? new_refs : refs, vertices, edges, last);
             if constexpr (collects_contents) {
                 vertices.pop_back();
             }
@@ -713,13 +646,116 @@ private:
                     edges.insert(edges.end(), matched, matched + count);
                 }
                 const bool stop = match_path_item<I + 1, N, FromCore>(
-                    plan, Position(to, PositionKind::CORE), refs, vertices, edges);
+                    plan, Position(to, PositionKind::CORE), refs, vertices, edges, last);
                 if constexpr (collects_contents) {
                     edges.erase(edges.end() - count, edges.end());
                 }
                 return stop;
             });
         }
+    }
+
+    // Matches an edge from the position to a known vertex, appending them to the vertices and edges
+    // matched before. Returns true once enough subgraphs are matched.
+    bool match_edge_to_vertex(const MatchEdge& edge, const MatchVertex& vertex, const Position& start_position,
+                              const Position& position, const Refs& refs,
+                              const std::vector<VertexID>& vertices, const std::vector<Edge>& edges) const {
+        if (position.kind != PositionKind::ORBIT) {
+            return false;
+        }
+
+        auto emit = [&](VertexID to, const Edge* matched, size_t count, const Refs& new_refs) {
+            auto& subgraph = dest_.subgraphs.emplace_back(SubgraphDraft{
+                start_position,
+                {Position(to, PositionKind::ORBIT)},
+                {},
+                {},
+                new_refs,
+            });
+            if constexpr (collects_contents) {
+                subgraph.vertices.reserve(vertices.size() + 1);
+                subgraph.vertices.assign(vertices.begin(), vertices.end());
+                subgraph.vertices.push_back(to);
+                subgraph.edges.reserve(edges.size() + count);
+                subgraph.edges.assign(edges.begin(), edges.end());
+                subgraph.edges.insert(subgraph.edges.end(), matched, matched + count);
+            }
+            return enough();
+        };
+
+        std::optional<VertexID> to;
+        if (vertex.placeholder_idx.has_value()) {
+            const auto placeholder_idx = vertex.placeholder_idx.value();
+            to = query_.placeholder_value_ids[placeholder_idx];
+            if (!to.has_value()) {
+                // Placeholder is not in graph (and never has been) — so no edge can lead to it until it's added.
+                dest_.deps.emplace_back(ParticularVertex(query_.placeholder_values[placeholder_idx]), start_.origin);
+                return false;
+            }
+        } else {
+            for (const auto& [name, vertex_id] : refs.positives()) {
+                if (name == vertex.match_ref.value()) {
+                    to = vertex_id;
+                    break;
+                }
+            }
+            if (!to.has_value()) {
+                // The planner guarantees the ref is set, but just in case, match all edges.
+                return for_each_edge_match(edge, position, [&](const Edge* matched, size_t count, VertexID to) {
+                    Refs new_refs;
+                    const auto match = match_vertex(vertex, Position(to, PositionKind::CORE), refs, new_refs);
+                    if (match == VertexMatch::None) {
+                        return false;
+                    }
+                    return emit(to, matched, count, match == VertexMatch::NewRefs ? new_refs : refs);
+                });
+            }
+        }
+
+        const VertexID from = position.vertex_id;
+        add_particular_edge_deps(edge, from, *to);
+        const auto& graph_edges = query_.graph.get_edges();
+        std::vector<Edge> matched;
+        switch (edge.direction) {
+            case Direction::Forward:
+                matched = graph_edges.iter_present_from_vertex_to_vertex(from, *to, edge.labels);
+                break;
+            case Direction::Backward:
+                matched = graph_edges.iter_present_from_vertex_to_vertex(*to, from, edge.labels);
+                break;
+            case Direction::Any: {
+                matched = graph_edges.iter_present_from_vertex_to_vertex(from, *to, edge.labels);
+                auto backward = graph_edges.iter_present_from_vertex_to_vertex(*to, from, edge.labels);
+                matched.insert(matched.end(), backward.begin(), backward.end());
+                break;
+            }
+            case Direction::Both: {
+                auto forward = graph_edges.iter_present_from_vertex_to_vertex(from, *to, edge.labels);
+                auto backward = reverse_all(graph_edges.iter_present_from_vertex_to_vertex(*to, from, edge.labels));
+                for (const Edge& e : sort_and_intersect(forward, backward)) {
+                    matched.push_back(e);
+                    matched.push_back(e.reverse());
+                }
+                break;
+            }
+        }
+        if (matched.empty()) {
+            return false;
+        }
+
+        Refs new_refs;
+        const auto match = match_vertex(vertex, Position(*to, PositionKind::CORE), refs, new_refs);
+        if (match == VertexMatch::None) {
+            return false;
+        }
+        const Refs& result_refs = match == VertexMatch::NewRefs ? new_refs : refs;
+        const size_t edges_per_match = edge.direction == Direction::Both ? 2 : 1;
+        for (size_t i = 0; i < matched.size(); i += edges_per_match) {
+            if (emit(*to, matched.data() + i, edges_per_match, result_refs)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // Matches operands into one query set, remembering the operand of each subgraph. Returns false

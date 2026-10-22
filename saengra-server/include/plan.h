@@ -25,7 +25,7 @@ using ConstNestedPlans = std::span<const Plan>;
 class MatchVertex;
 class MatchEdge;
 class MatchNoop;
-class MatchEdgeToVertex;
+class MatchPathToVertex;
 class MatchPath;
 class MatchConcatenation;
 class MatchOr;
@@ -46,7 +46,7 @@ class Plan: public boost::variant<
     boost::recursive_wrapper<MatchVertex>,
     boost::recursive_wrapper<MatchEdge>,
     boost::recursive_wrapper<MatchNoop>,
-    boost::recursive_wrapper<MatchEdgeToVertex>,
+    boost::recursive_wrapper<MatchPathToVertex>,
     boost::recursive_wrapper<MatchPath>,
     boost::recursive_wrapper<MatchConcatenation>,
     boost::recursive_wrapper<MatchOr>,
@@ -114,17 +114,6 @@ public:
     ConstNestedPlans iter_nested_plans() const;
 };
 
-// -edge> ? or -edge> match_ref — optimized by requesting particular edge and depending only on it
-class MatchEdgeToVertex {
-public:
-    MatchEdge edge;
-    MatchVertex vertex;
-
-    std::string to_string() const;
-    NestedPlans iter_nested_plans();
-    ConstNestedPlans iter_nested_plans() const;
-};
-
 // vertex -edge> vertex <edge- ... — optimized by implementing simple nested loops (up to X levels deep)
 class MatchPath {
 public:
@@ -133,6 +122,19 @@ public:
     PositionKind start;  // orbit means we start with edges[0], core — with vertices[0]
     std::vector<MatchEdge> edges;
     std::vector<MatchVertex> vertices;
+
+    std::string to_string() const;
+    NestedPlans iter_nested_plans();
+    ConstNestedPlans iter_nested_plans() const;
+};
+
+// ... -edge> ? or ... -edge> match_ref — a path ending with an edge to a known vertex, optimized by
+// requesting particular edge and depending only on it
+class MatchPathToVertex {
+public:
+    MatchPath path;  // before the edge; it's empty or ends with a vertex
+    MatchEdge edge;
+    MatchVertex vertex;
 
     std::string to_string() const;
     NestedPlans iter_nested_plans();
