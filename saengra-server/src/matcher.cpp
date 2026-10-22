@@ -41,12 +41,23 @@ QuerySet QuerySetDraft::finalize() && {
 // Match visitor
 // ============================================================================
 
-// Matches a plan. With nonzero `Limit`, the caller only needs to know whether at least `Limit`
-// subgraphs match, and doesn't use their contents, so matching stops as soon as they are found.
-// Dependencies of the subgraphs found by then are enough: the result can only change once they
-// stop matching.
-template<size_t Limit>
+// What the caller needs from the matched subgraphs.
+enum class MatchMode {
+    Normal,    // entire subgraphs
+    First,     // only whether anything matches, so the first match is enough; its contents aren't used
+    RefsOnly,  // all matches, but only their refs and end positions, not vertices and edges
+};
+
+// Matches a plan. In First mode, matching stops as soon as a subgraph is found. Dependencies of
+// the subgraphs found by then are enough: the result can only change once they stop matching.
+template<MatchMode Mode>
 class MatchVisitor : public boost::static_visitor<void> {
+    static constexpr bool collects_contents = Mode == MatchMode::Normal;
+    // Mode for operands whose matches are all needed, but whose contents are needed only in Normal mode.
+    static constexpr MatchMode all_matches_mode = collects_contents ? MatchMode::Normal : MatchMode::RefsOnly;
+    // Mode for operands whose contents are never used.
+    static constexpr MatchMode no_contents_mode = Mode == MatchMode::First ? MatchMode::First : MatchMode::RefsOnly;
+
 public:
     MatchVisitor(const PreprocessedQuery& query, const Start& start, QuerySetDraft& dest)
         : query_(query), start_(start), dest_(dest), base_(dest.subgraphs.size()) {}
@@ -57,25 +68,30 @@ public:
         if (match == VertexMatch::None) {
             return;
         }
-        const auto vertex_id = start_.position.vertex_id;
-        dest_.subgraphs.push_back(SubgraphDraft{
+        auto& subgraph = dest_.subgraphs.emplace_back(SubgraphDraft{
             start_.origin,
             {start_.position.with_kind(PositionKind::ORBIT)},
-            {vertex_id},
+            {},
             {},
             match == VertexMatch::NewRefs ? std::move(new_refs) : start_.refs,
         });
+        if constexpr (collects_contents) {
+            subgraph.vertices.push_back(start_.position.vertex_id);
+        }
     }
 
     void operator()(const MatchEdge& plan) const {
         for_each_edge_match(plan, start_.position, [this](const Edge* edges, size_t count, VertexID to) {
-            dest_.subgraphs.push_back(SubgraphDraft{
+            auto& subgraph = dest_.subgraphs.emplace_back(SubgraphDraft{
                 start_.position,
                 {Position(to, PositionKind::CORE)},
                 {},
-                std::vector<Edge>(edges, edges + count),
+                {},
                 start_.refs,
             });
+            if constexpr (collects_contents) {
+                subgraph.edges.assign(edges, edges + count);
+            }
             return enough();
         });
     }
@@ -152,13 +168,17 @@ public:
         const Refs& refs = match == VertexMatch::NewRefs ? new_refs : start_.refs;
         const size_t edges_per_match = plan.edge.direction == Direction::Both ? 2 : 1;
         for (size_t i = 0; i < matched.size(); i += edges_per_match) {
-            dest_.subgraphs.push_back(SubgraphDraft{
+            auto& subgraph = dest_.subgraphs.emplace_back(SubgraphDraft{
                 start_.position,
                 {Position(*to, PositionKind::ORBIT)},
-                {*to},
-                std::vector<Edge>(matched.begin() + i, matched.begin() + i + edges_per_match),
+                {},
+                {},
                 refs,
             });
+            if constexpr (collects_contents) {
+                subgraph.vertices.push_back(*to);
+                subgraph.edges.assign(matched.begin() + i, matched.begin() + i + edges_per_match);
+            }
             if (enough()) {
                 return;
             }
@@ -190,7 +210,7 @@ public:
 
         // Any subgraph of the head may be the one continued by the tail, so all of them are needed.
         QuerySetDraft start_qs{dest_.deps};
-        boost::apply_visitor(MatchVisitor<0>(query_, start_, start_qs), *it);
+        boost::apply_visitor(MatchVisitor<all_matches_mode>(query_, start_, start_qs), *it);
 
         for (const auto& start_sg : start_qs.subgraphs) {
             for (const auto& end_pos : start_sg.end_positions) {
@@ -347,7 +367,7 @@ public:
     }
 
     void operator()(const MatchAll& plan) const {
-        // The result is empty if and only if the operand doesn't match, so the limit applies to it.
+        // The result is empty if and only if the operand doesn't match, so the operand is matched in the same mode.
         QuerySetDraft operand_qs{dest_.deps};
         boost::apply_visitor(MatchVisitor(query_, start_, operand_qs), plan.operand);
 
@@ -389,7 +409,7 @@ public:
     void operator()(const MatchIfWithoutSetRef& plan) const {
         // All subgraphs have the refs of the start, so one is enough.
         QuerySetDraft operand_qs{dest_.deps};
-        boost::apply_visitor(MatchVisitor<1>(query_, start_, operand_qs), plan.operand);
+        boost::apply_visitor(MatchVisitor<MatchMode::First>(query_, start_, operand_qs), plan.operand);
         if (operand_qs.subgraphs.empty()) {
             return;
         }
@@ -401,9 +421,9 @@ public:
     }
 
     void operator()(const MatchIf& plan) const {
-        // The result is empty if and only if the operand doesn't match, so the limit applies to it.
+        // Only refs are returned, and in First mode, only whether the operand matches matters.
         QuerySetDraft operand_qs{dest_.deps};
-        boost::apply_visitor(MatchVisitor(query_, start_, operand_qs), plan.operand);
+        boost::apply_visitor(MatchVisitor<no_contents_mode>(query_, start_, operand_qs), plan.operand);
 
         std::set<Refs> different_refs;
         for (auto& operand_sg : operand_qs.subgraphs) {
@@ -421,7 +441,7 @@ public:
     void operator()(const MatchUnlessWithoutSetNonLocalRef& plan) const {
         // Any subgraph matches without narrowing the refs, so one is enough for the negation to fail.
         QuerySetDraft operand_qs{dest_.deps};
-        boost::apply_visitor(MatchVisitor<1>(query_, start_, operand_qs), plan.operand);
+        boost::apply_visitor(MatchVisitor<MatchMode::First>(query_, start_, operand_qs), plan.operand);
         if (operand_qs.subgraphs.empty()) {
             dest_.subgraphs.push_back(SubgraphDraft{start_.position, {start_.position}, {}, {}, start_.refs});
         }
@@ -429,7 +449,7 @@ public:
 
     void operator()(const MatchUnless& plan) const {
         QuerySetDraft operand_qs{dest_.deps};
-        boost::apply_visitor(MatchVisitor<0>(query_, start_, operand_qs), plan.operand);
+        boost::apply_visitor(MatchVisitor<MatchMode::RefsOnly>(query_, start_, operand_qs), plan.operand);
 
         // The negation holds in the part of the refspace where the operand doesn't match.
         // Refs local to the operand are projected away: it must match for none of their values.
@@ -452,7 +472,7 @@ public:
 
     void operator()(const MatchSkip& plan) const {
         QuerySetDraft operand_qs{dest_.deps};
-        boost::apply_visitor(MatchVisitor(query_, start_, operand_qs), plan.operand);
+        boost::apply_visitor(MatchVisitor<no_contents_mode>(query_, start_, operand_qs), plan.operand);
 
         // TODO remember dest_.subgraphs.size(), call without operand_qs and modify new subgraphs?
         dest_.subgraphs.reserve(dest_.subgraphs.size() + operand_qs.subgraphs.size());
@@ -483,10 +503,10 @@ private:
     const size_t base_;  // subgraphs in dest_ before matching
 
     bool enough() const {
-        if constexpr (Limit == 0) {
-            return false;
+        if constexpr (Mode == MatchMode::First) {
+            return dest_.subgraphs.size() > base_;
         } else {
-            return dest_.subgraphs.size() - base_ >= Limit;
+            return false;
         }
     }
 
@@ -652,8 +672,10 @@ private:
     void match_path(const MatchPath& plan) const {
         std::vector<VertexID> vertices;
         std::vector<Edge> edges;
-        vertices.reserve(plan.vertices.size());
-        edges.reserve(plan.edges.size() * 2);
+        if constexpr (collects_contents) {
+            vertices.reserve(plan.vertices.size());
+            edges.reserve(plan.edges.size() * 2);
+        }
         match_path_item<0, N, FromCore>(plan, start_.position, start_.refs, vertices, edges);
     }
 
@@ -676,17 +698,25 @@ private:
             if (match == VertexMatch::None) {
                 return false;
             }
-            vertices.push_back(position.vertex_id);
+            if constexpr (collects_contents) {
+                vertices.push_back(position.vertex_id);
+            }
             const bool stop = match_path_item<I + 1, N, FromCore>(
                 plan, position.with_kind(PositionKind::ORBIT), match == VertexMatch::NewRefs ? new_refs : refs, vertices, edges);
-            vertices.pop_back();
+            if constexpr (collects_contents) {
+                vertices.pop_back();
+            }
             return stop;
         } else {
             return for_each_edge_match(plan.edges[I / 2], position, [&](const Edge* matched, size_t count, VertexID to) {
-                edges.insert(edges.end(), matched, matched + count);
+                if constexpr (collects_contents) {
+                    edges.insert(edges.end(), matched, matched + count);
+                }
                 const bool stop = match_path_item<I + 1, N, FromCore>(
                     plan, Position(to, PositionKind::CORE), refs, vertices, edges);
-                edges.erase(edges.end() - count, edges.end());
+                if constexpr (collects_contents) {
+                    edges.erase(edges.end() - count, edges.end());
+                }
                 return stop;
             });
         }
@@ -695,7 +725,7 @@ private:
     // Matches operands into one query set, remembering the operand of each subgraph. Returns false
     // if one of the operands doesn't match.
     bool match_operands(const Plans& operands, QuerySetDraft& operand_qs, std::vector<size_t>& operand_idx) const {
-        MatchVisitor<0> operand_visitor(query_, start_, operand_qs);
+        MatchVisitor<all_matches_mode> operand_visitor(query_, start_, operand_qs);
         for (size_t i = 0; i < operands.size(); ++i) {
             const auto size_before = operand_qs.subgraphs.size();
             boost::apply_visitor(operand_visitor, operands[i]);
@@ -831,7 +861,7 @@ PreprocessedQuery Matcher::preprocess_query(const Query& query) const {
 }
 
 void Matcher::match_(const PreprocessedQuery& query, const Plan& plan, const Start& start, QuerySetDraft& dest) const {
-    MatchVisitor<0> visitor(query, start, dest);
+    MatchVisitor<MatchMode::Normal> visitor(query, start, dest);
     boost::apply_visitor(visitor, plan);
 
 //    std::cout << "DEPENDENCIES:" << std::endl;
