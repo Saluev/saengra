@@ -1,5 +1,6 @@
 #include "debug.h"
 #include "matcher.h"
+#include <algorithm>
 #include <boost/dynamic_bitset.hpp>
 #include <boost/variant/apply_visitor.hpp>
 #include <boost/variant/static_visitor.hpp>
@@ -11,31 +12,29 @@ namespace saengra {
 // Helper functions
 // ============================================================================
 
-Subgraph SubgraphDraft::finalize() const {
-    // Deduplicate end_positions
-    std::set<Position> unique_end_positions(end_positions.begin(), end_positions.end());
-    std::vector<Position> deduped_end_positions(unique_end_positions.begin(), unique_end_positions.end());
-
-    // Deduplicate vertices
-    std::set<VertexID> unique_vertices(vertices.begin(), vertices.end());
-    std::vector<VertexID> deduped_vertices(unique_vertices.begin(), unique_vertices.end());
-
-    // Deduplicate edges
-    std::set<Edge> unique_edges(edges.begin(), edges.end());
-    std::vector<Edge> deduped_edges(unique_edges.begin(), unique_edges.end());
-
-    return Subgraph{start_position, deduped_end_positions, deduped_vertices, deduped_edges, refs};
+template<typename T>
+static void sort_and_deduplicate(std::vector<T>& items) {
+    std::sort(items.begin(), items.end());
+    items.erase(std::unique(items.begin(), items.end()), items.end());
 }
 
-QuerySet QuerySetDraft::finalize() const {
-    // Finalize and deduplicate subgraphs
-    Subgraphs unique_subgraphs;
-    for (const auto& draft : subgraphs) {
-        unique_subgraphs.insert(draft.finalize());
-    }
-    std::vector<Subgraph> finalized_subgraphs(unique_subgraphs.begin(), unique_subgraphs.end());
+Subgraph SubgraphDraft::finalize() && {
+    sort_and_deduplicate(end_positions);
+    sort_and_deduplicate(vertices);
+    sort_and_deduplicate(edges);
+    return Subgraph{start_position, std::move(end_positions), std::move(vertices), std::move(edges), std::move(refs)};
+}
 
-    return QuerySet{finalized_subgraphs, deps, start_deps};
+QuerySet QuerySetDraft::finalize() && {
+    // Sorted subgraphs are grouped by start positions, see Subgraph::operator<.
+    std::vector<Subgraph> finalized_subgraphs;
+    finalized_subgraphs.reserve(subgraphs.size());
+    for (auto& draft : subgraphs) {
+        finalized_subgraphs.push_back(std::move(draft).finalize());
+    }
+    sort_and_deduplicate(finalized_subgraphs);
+
+    return QuerySet{std::move(finalized_subgraphs), std::move(deps), std::move(start_deps)};
 }
 
 // ============================================================================
@@ -741,7 +740,7 @@ QuerySet Matcher::match(const Query& query, const StartPositions& start_position
         expand_negatives(query.graph, start_pos, first, result);
     }
 
-    return result.finalize();
+    return std::move(result).finalize();
 }
 
 void Matcher::expand_negatives(const Graph& graph, const Position& start_pos, size_t first, QuerySetDraft& result) const {

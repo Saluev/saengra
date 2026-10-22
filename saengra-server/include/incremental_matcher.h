@@ -40,7 +40,7 @@ struct IncrementalUpdate {
 
 using ObservableSet = absl::flat_hash_set<Observable, std::hash<Observable>>;
 using DepToStartPositions = absl::flat_hash_map<Observable, absl::flat_hash_set<ObservableStartPosition, std::hash<ObservableStartPosition>>, std::hash<Observable>>;
-using PositionToSubgraphs = std::unordered_map<Position, Subgraphs>;
+using PositionToSubgraphs = std::unordered_map<Position, std::vector<Subgraph>>;  // sorted
 
 class IncrementalMatcher {
 public:
@@ -57,11 +57,9 @@ private:
     DepToStartPositions dep_to_positions_;
     absl::flat_hash_map<Position, Observables, std::hash<Position>> position_to_deps_;
 
-    PositionToSubgraphs calc_sg_by_sp(const QuerySet& qs) const;
-    void fill_deps_from_qs(const QuerySet& qs);
-    void fill_deps_from_query_set_observables(const QuerySetObservables& qsos);
-    ObservableSet gather_deps_for_sps(const std::unordered_set<Position>& sps) const;
-    void clear_deps_for_sps(const std::unordered_set<Position>& sps);
+    static PositionToSubgraphs calc_sg_by_sp(std::vector<Subgraph>&& subgraphs);
+    void fill_deps(const QuerySetObservables& qsos, Observables& added_deps, ObservableSet& removed_deps);
+    void clear_deps_for_sps(const std::unordered_set<Position>& sps, ObservableSet& removed_deps);
     std::unordered_set<Position> iter_start_positions_needing_rematch(const Observations& os) const;
     SubgraphChanges find_subgraph_changes(
         const std::unordered_set<Position>& sps,

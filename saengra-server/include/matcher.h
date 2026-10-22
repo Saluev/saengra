@@ -17,7 +17,7 @@ struct SubgraphDraft {
     std::vector<Edge> edges;
     Refs refs;
 
-    Subgraph finalize() const;
+    Subgraph finalize() &&;
 
     inline bool operator<(const SubgraphDraft& other) const {
         return std::tie(start_position, end_positions, vertices, edges, refs)
@@ -36,7 +36,7 @@ struct QuerySetDraft {
     std::vector<QuerySetObservable> start_deps;
 
     QuerySetDraft(std::vector<QuerySetObservable>& deps) : deps(deps) {}
-    QuerySet finalize() const;
+    QuerySet finalize() &&;
 };
 
 struct Start {

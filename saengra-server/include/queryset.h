@@ -54,9 +54,9 @@ struct QuerySetObservable {
 using QuerySetObservables = std::vector<QuerySetObservable>;
 
 struct QuerySet {
-    const std::vector<Subgraph> subgraphs;
-    const QuerySetObservables deps;
-    const QuerySetObservables start_deps;
+    std::vector<Subgraph> subgraphs;  // sorted
+    QuerySetObservables deps;
+    QuerySetObservables start_deps;
 };
 
 }
