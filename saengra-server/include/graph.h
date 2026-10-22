@@ -7,7 +7,6 @@
 #include "absl/hash/hash.h"
 #include "vertices_container.h"
 #include "edges_container.h"
-#include "observable.h"
 #include "messages.pb.h"
 
 namespace saengra {
@@ -44,6 +43,18 @@ struct NativeUpdate {
 
 using NativeUpdates = std::vector<NativeUpdate>;
 
+// Net changes of the graph since the last apply().
+struct GraphChanges {
+    std::vector<VertexID> added_vertices;
+    std::vector<VertexID> removed_vertices;
+    std::vector<Edge> added_edges;
+    std::vector<Edge> removed_edges;
+
+    inline bool empty() const {
+        return added_vertices.empty() && removed_vertices.empty() && added_edges.empty() && removed_edges.empty();
+    }
+};
+
 class Graph {
 public:
     explicit Graph();
@@ -59,7 +70,7 @@ public:
 
     void update(const ProtoUpdates& updates);
     void update(const NativeUpdates& updates);
-    Observations apply();
+    GraphChanges apply();
     void commit();
     void rollback();
 

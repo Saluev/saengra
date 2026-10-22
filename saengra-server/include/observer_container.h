@@ -65,8 +65,8 @@ public:
     void register_native(const std::string& id, const std::string& expression,
                          const PlaceholderValues& placeholder_values,
                          bool on_create, bool on_change, bool on_delete, bool with_subgraphs);
-    std::vector<saengra_api::CommitResponse_Observation> observe_proto(const Observations& observations);
-    std::vector<NativeObservation> observe_native(const Observations& observations);
+    std::vector<saengra_api::CommitResponse_Observation> observe_proto(const GraphChanges& changes);
+    std::vector<NativeObservation> observe_native(const GraphChanges& changes);
     void reinitialize_all();
 private:
     Graph& graph_;
@@ -75,6 +75,8 @@ private:
     std::unordered_map<Observable, Observers> subscriptions_;
 
     void apply_subscription_changes(ObserverID observer_id, const SubscriptionChanges& changes);
+    // Observations of the changes that some observer is subscribed to.
+    Observations collect_observations(const GraphChanges& changes) const;
 };
 
 }

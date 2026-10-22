@@ -563,8 +563,8 @@ static PyObject* DirectAdapter_commit(DirectAdapterObject* self, PyObject* Py_UN
         self->pending_updates->clear();
     }
 
-    auto graph_observations = self->graph->apply();
-    if (graph_observations.empty()) {
+    auto graph_changes = self->graph->apply();
+    if (graph_changes.empty()) {
         self->graph->commit();
         // return (False, [])
         PyObject* empty_list = PyList_New(0);
@@ -573,7 +573,7 @@ static PyObject* DirectAdapter_commit(DirectAdapterObject* self, PyObject* Py_UN
         return result;
     }
 
-    auto native_obs = self->observer_container->observe_native(graph_observations);
+    auto native_obs = self->observer_container->observe_native(graph_changes);
     if (native_obs.empty()) {
         self->graph->commit();
         PyObject* empty_list = PyList_New(0);
@@ -600,12 +600,12 @@ static PyObject* DirectAdapter_apply(DirectAdapterObject* self, PyObject* Py_UNU
         self->pending_updates->clear();
     }
 
-    auto graph_observations = self->graph->apply();
-    if (graph_observations.empty()) {
+    auto graph_changes = self->graph->apply();
+    if (graph_changes.empty()) {
         return PyList_New(0);
     }
 
-    auto native_obs = self->observer_container->observe_native(graph_observations);
+    auto native_obs = self->observer_container->observe_native(graph_changes);
     return native_observations_to_python(self, native_obs);
 }
 

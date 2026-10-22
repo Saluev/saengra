@@ -199,15 +199,15 @@ void Worker::handleCommit(const saengra_api::Commit& request, saengra_api::Commi
         return;
     }
 
-    auto graph_observations = current_env_->graph.apply();
-    if (graph_observations.empty()) {
+    auto graph_changes = current_env_->graph.apply();
+    if (graph_changes.empty()) {
         current_env_->graph.commit();
         response.set_status(saengra_api::CommitResponse_Status_OK);
-        spdlog::info("Committed — no observations from graph");
+        spdlog::info("Committed — no changes in graph");
         return;
     }
 
-    auto proto_observations = current_env_->observer_container.observe_proto(graph_observations);
+    auto proto_observations = current_env_->observer_container.observe_proto(graph_changes);
     if (proto_observations.empty()) {
         current_env_->graph.commit();
         response.set_status(saengra_api::CommitResponse_Status_OK);
@@ -231,13 +231,13 @@ void Worker::handleApply(const saengra_api::Apply& request, saengra_api::ApplyRe
 
     response.set_status(saengra_api::ApplyResponse_Status_OK);
 
-    auto graph_observations = current_env_->graph.apply();
-    if (graph_observations.empty()) {
-        spdlog::info("Applied changes — no observations from graph");
+    auto graph_changes = current_env_->graph.apply();
+    if (graph_changes.empty()) {
+        spdlog::info("Applied — no changes in graph");
         return;
     }
 
-    auto proto_observations = current_env_->observer_container.observe_proto(graph_observations);
+    auto proto_observations = current_env_->observer_container.observe_proto(graph_changes);
     *response.mutable_observation() = {proto_observations.begin(), proto_observations.end()};
     spdlog::info("Applied changes — got {} observations", BRIGHT_WHITE(proto_observations.size()));
 }

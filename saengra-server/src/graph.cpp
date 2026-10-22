@@ -172,64 +172,18 @@ void Graph::update(const NativeUpdates& updates) {
     update_impl<NativeUpdateAccessor>(updates);
 }
 
-class ObservationMap : public std::unordered_map<Observable, Observation> {
-public:
-    Observation& ensure(Observable observable) {
-        auto [it, inserted] = try_emplace(observable, observable);
-        return it->second;
-    }
-};
-
-Observations Graph::apply() {
+GraphChanges Graph::apply() {
     if (!vertices_.has_unapplied_changes() && !edges_.has_unapplied_changes()) return {};
 
-    // Trigger observers, check if any of them prevents commit from happening.
-    ObservationMap observations;
-    auto& new_vertex_observation = observations.ensure(NewVertex()); // optimized faster access to observables
-    auto& new_edge_observation = observations.ensure(NewEdge());     // that are most likely present
-
-    for (const auto vertex_id : vertices_.iter_just_added()) {
-        const auto& v = *vertex_id;
-        new_vertex_observation.track_added_vertex(vertex_id);
-        observations.ensure(NewVertexOfType(v.type_name)).track_added_vertex(vertex_id);
-        observations.ensure(ParticularVertex(VertexData(v.type_name, v.value)));
-    }
-    for (const auto vertex_id : vertices_.iter_just_removed()) {
-        const auto& v = *vertex_id;
-        observations.ensure(ParticularVertex(VertexData(v.type_name, v.value)));
-    }
-    for (const auto& e : edges_.iter_just_added()) {
-        new_edge_observation.track_added_edge(e);
-        observations.ensure(NewEdgeWithLabel(e.label)).track_added_edge(e);
-        observations.ensure(EdgeFrom(e.from));
-        observations.ensure(EdgeFromWithLabel(e.from, e.label));
-        observations.ensure(EdgeTo(e.to));
-        observations.ensure(EdgeToWithLabel(e.to, e.label));
-    }
-    for (const auto& e : edges_.iter_just_removed()) {
-        observations.ensure(EdgeFrom(e.from));
-        observations.ensure(EdgeFromWithLabel(e.from, e.label));
-        observations.ensure(EdgeTo(e.to));
-        observations.ensure(EdgeToWithLabel(e.to, e.label));
-    }
-
-    // making sure that optimization doesn't change actual output
-    if (new_vertex_observation.added_vertex_ids.size() == 0) {
-        observations.erase(NewVertex());
-    }
-    if (new_edge_observation.added_edges.size() == 0) {
-        observations.erase(NewEdge());
-    }
-
+    GraphChanges changes{
+        vertices_.iter_just_added(),
+        vertices_.iter_just_removed(),
+        edges_.iter_just_added(),
+        edges_.iter_just_removed(),
+    };
     vertices_.apply();
     edges_.apply();
-
-    Observations flat_observations;
-    flat_observations.reserve(observations.size());
-    for (auto& [observable, observation] : observations) {
-        flat_observations.push_back(std::move(observation));
-    }
-    return flat_observations;
+    return changes;
 }
 
 void Graph::commit() {

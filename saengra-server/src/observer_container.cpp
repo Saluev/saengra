@@ -219,7 +219,9 @@ struct ObserverWithObservations {
     Observations observations;
 };
 
-std::vector<saengra_api::CommitResponse_Observation> ObserverContainer::observe_proto(const Observations& observations) {
+std::vector<saengra_api::CommitResponse_Observation> ObserverContainer::observe_proto(const GraphChanges& changes) {
+    const Observations observations = collect_observations(changes);
+
 //    std::cerr << "Observing " << observations.size() << " observations:" << std::endl;
 //    for (const auto& observation : observations) {
 //        std::cerr << "    " << observation << std::endl;
@@ -255,7 +257,9 @@ std::vector<saengra_api::CommitResponse_Observation> ObserverContainer::observe_
     return result;
 }
 
-std::vector<NativeObservation> ObserverContainer::observe_native(const Observations& observations) {
+std::vector<NativeObservation> ObserverContainer::observe_native(const GraphChanges& changes) {
+    const Observations observations = collect_observations(changes);
+
     std::vector<NativeObservation> result;
 
     std::unordered_map<ObserverID, ObserverWithObservations> id_to_obs;
@@ -294,6 +298,63 @@ void ObserverContainer::apply_subscription_changes(ObserverID observer_id, const
             }
         }
     }
+}
+
+Observations ObserverContainer::collect_observations(const GraphChanges& changes) const {
+    std::unordered_map<Observable, Observation> observations;
+    auto observe = [this, &observations](Observable observable) -> Observation* {
+        if (!subscriptions_.contains(observable)) {
+            return nullptr;
+        }
+        auto [it, inserted] = observations.try_emplace(observable, observable);
+        return &it->second;
+    };
+
+    if (!changes.added_vertices.empty()) {
+        Observation* new_vertex = observe(NewVertex());
+        for (const auto vertex_id : changes.added_vertices) {
+            const auto& v = *vertex_id;
+            if (new_vertex) {
+                new_vertex->track_added_vertex(vertex_id);
+            }
+            if (Observation* new_vertex_of_type = observe(NewVertexOfType(v.type_name))) {
+                new_vertex_of_type->track_added_vertex(vertex_id);
+            }
+            observe(ParticularVertex(VertexData(v.type_name, v.value)));
+        }
+    }
+    for (const auto vertex_id : changes.removed_vertices) {
+        const auto& v = *vertex_id;
+        observe(ParticularVertex(VertexData(v.type_name, v.value)));
+    }
+    if (!changes.added_edges.empty()) {
+        Observation* new_edge = observe(NewEdge());
+        for (const auto& e : changes.added_edges) {
+            if (new_edge) {
+                new_edge->track_added_edge(e);
+            }
+            if (Observation* new_edge_with_label = observe(NewEdgeWithLabel(e.label))) {
+                new_edge_with_label->track_added_edge(e);
+            }
+            observe(EdgeFrom(e.from));
+            observe(EdgeFromWithLabel(e.from, e.label));
+            observe(EdgeTo(e.to));
+            observe(EdgeToWithLabel(e.to, e.label));
+        }
+    }
+    for (const auto& e : changes.removed_edges) {
+        observe(EdgeFrom(e.from));
+        observe(EdgeFromWithLabel(e.from, e.label));
+        observe(EdgeTo(e.to));
+        observe(EdgeToWithLabel(e.to, e.label));
+    }
+
+    Observations result;
+    result.reserve(observations.size());
+    for (auto& [observable, observation] : observations) {
+        result.push_back(std::move(observation));
+    }
+    return result;
 }
 
 void ObserverContainer::reinitialize_all() {
