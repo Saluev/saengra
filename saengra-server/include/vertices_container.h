@@ -1,5 +1,6 @@
 #pragma once
 
+#include "absl/container/node_hash_set.h"
 #include "absl/hash/hash.h"
 #include "vertex.h"
 #include "edge.h"
@@ -7,29 +8,6 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-
-namespace saengra {
-
-struct InternalizedTypeName {
-    std::unique_ptr<std::string> type_name;
-
-    inline bool operator==(const InternalizedTypeName& other) const {
-        return *type_name == *other.type_name;
-    }
-};
-
-}
-
-namespace std {
-
-template <>
-struct hash<saengra::InternalizedTypeName> {
-    std::size_t operator()(const saengra::InternalizedTypeName& v) const {
-        return std::hash<std::string>{}(*v.type_name);
-    }
-};
-
-}
 
 namespace saengra {
 
@@ -69,7 +47,8 @@ private:
     std::vector<VertexID> iter_just_changed(bool added) const;
 
     std::unordered_map<VertexData, std::unique_ptr<StoredVertex>> vertex_id_by_vertex;
-    std::unordered_set<InternalizedTypeName> type_names;
+    // Type names never move, so that VertexTypeName can point to them.
+    absl::node_hash_set<std::string> type_names;
     VertexIDSet present;
     std::unordered_map<VertexTypeName, VertexIDSet> vertices_by_type_name;
 

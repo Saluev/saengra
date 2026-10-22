@@ -9,8 +9,11 @@ static constexpr size_t kMaxRetainedLogCapacity = 4096;
 MutableVerticesContainer::MutableVerticesContainer() {}
 
 VertexTypeName MutableVerticesContainer::internalize_type_name(const std::string& type_name) {
-    auto [it, inserted] = type_names.emplace(std::make_unique<std::string>(type_name));
-    return VertexTypeName(*it->type_name);
+    auto it = type_names.find(type_name);
+    if (it == type_names.end()) {
+        it = type_names.insert(type_name).first;
+    }
+    return VertexTypeName(*it);
 }
 
 void MutableVerticesContainer::set_present(VertexID vertex_id, bool is_present) {

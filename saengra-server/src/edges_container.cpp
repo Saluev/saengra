@@ -197,8 +197,11 @@ const Branch* Trunk::get_branch(VertexID from) const {
 MutableEdgesContainer::MutableEdgesContainer(): forward_(false), inverse_(true) {}
 
 EdgeLabel MutableEdgesContainer::internalize_label(const std::string& label) {
-    auto [it, inserted] = labels_.emplace(std::make_unique<std::string>(label));
-    return EdgeLabel(*it->label_);
+    auto it = labels_.find(label);
+    if (it == labels_.end()) {
+        it = labels_.insert(label).first;
+    }
+    return EdgeLabel(*it);
 }
 
 bool MutableEdgesContainer::insert(VertexID from, const EdgeLabel& label, VertexID to) {

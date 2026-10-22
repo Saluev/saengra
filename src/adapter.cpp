@@ -506,9 +506,22 @@ static PyObject* native_observations_to_python(DirectAdapterObject* self, const 
     PyObject* ObservationType_class = PyObject_GetAttrString(api_module, "ObservationType");
     Py_DECREF(api_module);
 
-    if (!Observation_class || !ObservationType_class) {
+    // Members of ObservationType by NativeObservationType, so that the enum isn't called for every observation.
+    PyObject* observation_types[3] = {NULL, NULL, NULL};
+    if (ObservationType_class) {
+        observation_types[0] = PyObject_GetAttrString(ObservationType_class, "ON_CREATE");
+        observation_types[1] = PyObject_GetAttrString(ObservationType_class, "ON_CHANGE");
+        observation_types[2] = PyObject_GetAttrString(ObservationType_class, "ON_DELETE");
+        Py_DECREF(ObservationType_class);
+    }
+    auto release = [&]() {
         Py_XDECREF(Observation_class);
-        Py_XDECREF(ObservationType_class);
+        for (PyObject* observation_type : observation_types) {
+            Py_XDECREF(observation_type);
+        }
+    };
+    if (!Observation_class || !observation_types[0] || !observation_types[1] || !observation_types[2]) {
+        release();
         return NULL;
     }
 
@@ -525,19 +538,18 @@ static PyObject* native_observations_to_python(DirectAdapterObject* self, const 
             if (!key || !value) {
                 Py_XDECREF(key); Py_XDECREF(value);
                 Py_DECREF(variables); Py_DECREF(obs_list);
-                Py_DECREF(Observation_class); Py_DECREF(ObservationType_class);
+                release();
                 return NULL;
             }
             PyDict_SetItem(variables, key, value);
             Py_DECREF(key); Py_DECREF(value);
         }
 
-        // Map NativeObservationType to protobuf int value for ObservationType enum
-        int obs_type_value;
+        PyObject* obs_type = NULL;
         switch (obs.type) {
-            case saengra::NativeObservationType::ON_CREATE: obs_type_value = 0; break;
-            case saengra::NativeObservationType::ON_CHANGE: obs_type_value = 1; break;
-            case saengra::NativeObservationType::ON_DELETE: obs_type_value = 2; break;
+            case saengra::NativeObservationType::ON_CREATE: obs_type = observation_types[0]; break;
+            case saengra::NativeObservationType::ON_CHANGE: obs_type = observation_types[1]; break;
+            case saengra::NativeObservationType::ON_DELETE: obs_type = observation_types[2]; break;
         }
 
         PyObject* subgraph = Py_None;
@@ -545,27 +557,26 @@ static PyObject* native_observations_to_python(DirectAdapterObject* self, const 
         if (obs.subgraph.has_value()) {
             if (!subgraph_classes.has_value() && !subgraph_classes.emplace().import()) {
                 Py_DECREF(subgraph); Py_DECREF(variables); Py_DECREF(obs_list);
-                Py_DECREF(Observation_class); Py_DECREF(ObservationType_class);
+                release();
                 return NULL;
             }
             Py_DECREF(subgraph);
             subgraph = subgraph_to_python(self, *obs.subgraph, *subgraph_classes);
             if (!subgraph) {
                 Py_DECREF(variables); Py_DECREF(obs_list);
-                Py_DECREF(Observation_class); Py_DECREF(ObservationType_class);
+                release();
                 return NULL;
             }
         }
 
-        PyObject* obs_type = PyObject_CallFunction(ObservationType_class, "i", obs_type_value);
         PyObject* observation = PyObject_CallFunction(Observation_class, "sOOO",
             obs.observer_id.c_str(), obs_type, variables, subgraph);
 
-        Py_XDECREF(obs_type); Py_DECREF(variables); Py_DECREF(subgraph);
+        Py_DECREF(variables); Py_DECREF(subgraph);
 
         if (!observation) {
             Py_DECREF(obs_list);
-            Py_DECREF(Observation_class); Py_DECREF(ObservationType_class);
+            release();
             return NULL;
         }
 
@@ -573,7 +584,7 @@ static PyObject* native_observations_to_python(DirectAdapterObject* self, const 
         Py_DECREF(observation);
     }
 
-    Py_DECREF(Observation_class); Py_DECREF(ObservationType_class);
+    release();
     return obs_list;
 }
 

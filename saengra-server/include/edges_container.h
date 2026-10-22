@@ -4,6 +4,7 @@
 #include "edge.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "absl/container/node_hash_set.h"
 #include <boost/variant.hpp>
 #include <memory>
 #include <unordered_map>
@@ -104,30 +105,6 @@ private:
     std::unordered_map<VertexID, Branch> branches_;
 };
 
-struct InternalizedEdgeLabel {
-    std::unique_ptr<std::string> label_;
-
-    inline bool operator==(const InternalizedEdgeLabel& other) const {
-        return *label_ == *other.label_;
-    }
-};
-
-}
-
-
-namespace std {
-
-template <>
-struct hash<saengra::InternalizedEdgeLabel> {
-    std::size_t operator()(const saengra::InternalizedEdgeLabel& v) const {
-        return std::hash<std::string>{}(*v.label_);
-    }
-};
-
-}
-
-namespace saengra {
-
 class MutableEdgesContainer {
 public:
     MutableEdgesContainer();
@@ -175,7 +152,8 @@ private:
     bool erase(VertexID from, const EdgeLabel& label, VertexID to);
     std::vector<Edge> iter_just_changed(bool added) const;
 
-    std::unordered_set<InternalizedEdgeLabel> labels_;
+    // Labels never move, so that EdgeLabel can point to them.
+    absl::node_hash_set<std::string> labels_;
     Trunk forward_;
     Trunk inverse_;
 
