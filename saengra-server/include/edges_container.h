@@ -27,6 +27,7 @@ public:
     bool remove(VertexID to);
 
     inline bool is_empty() const { return to_ == nullptr; }
+    inline bool contains(VertexID to) const { return to_ == to; }
 
     template <typename F>
     void for_each(F&& f) const {
@@ -45,6 +46,7 @@ public:
     bool remove(VertexID to);
 
     inline bool is_empty() const { return targets_.empty(); }
+    inline bool contains(VertexID to) const { return targets_.contains(to); }
 
     template <typename F>
     void for_each(F&& f) const {
@@ -68,6 +70,7 @@ public:
     // Iterators
     void iter_present(std::vector<Edge>& dest) const;
     void iter_present_via_label(const EdgeLabel& label, std::vector<Edge>& dest) const;
+    void iter_present_to_vertex_via_labels(VertexID to, const std::vector<EdgeLabel>& labels, std::vector<Edge>& dest) const;
 
     bool is_empty() const { return leaves_.empty(); }
 
@@ -154,6 +157,9 @@ public:
     std::vector<Edge> iter_present_to_vertex_via_labels(VertexID from, const std::vector<EdgeLabel>& label) const;
 
     std::vector<Edge> iter_present_via_labels(const std::vector<EdgeLabel>& labels) const;
+
+    // Edges between two vertices via any of the labels, or via any label if there are none.
+    std::vector<Edge> iter_present_from_vertex_to_vertex(VertexID from, VertexID to, const std::vector<EdgeLabel>& labels) const;
 
     // Net changes since the last apply().
     std::vector<Edge> iter_just_added() const;

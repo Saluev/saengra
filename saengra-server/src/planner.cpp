@@ -212,8 +212,8 @@ private:
                 ++i;
                 continue;
             }
-            if (!path.empty() && path.back().index() == items[i].index()) {
-                // Two vertices or two edges in a row don't make a path.
+            if (!path.empty() && (path.back().index() == items[i].index() || path.size() == MatchPath::max_length)) {
+                // Two vertices or two edges in a row don't make a path, and paths have limited length.
                 add_path(std::move(path), plans);
                 path.clear();
             }

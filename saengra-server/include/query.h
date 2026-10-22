@@ -4,6 +4,7 @@
 #include <string>
 #include "expression.h"
 #include "graph.h"
+#include "planner.h"
 #include "vertex.h"
 
 namespace saengra {
@@ -14,6 +15,7 @@ struct Query {
     const Graph& graph;
     Expression expression;
     const PlaceholderValues placeholder_values;
+    Plan plan;
 };
 
 inline size_t count_placeholders(const Expression& expr) {
@@ -38,7 +40,8 @@ inline Query make_query(const Graph& graph, Expression expression, PlaceholderVa
             " placeholder value(s) were provided"
         );
     }
-    return Query{graph, std::move(expression), std::move(placeholder_values)};
+    Plan plan = Planner().plan(expression);
+    return Query{graph, std::move(expression), std::move(placeholder_values), std::move(plan)};
 }
 
 }

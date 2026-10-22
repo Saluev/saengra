@@ -7,7 +7,6 @@ namespace saengra {
 
 struct PreprocessedQuery {
     const Graph& graph;
-    Expression expression;
     std::vector<std::optional<VertexID>> placeholder_value_ids;
 };
 
@@ -52,7 +51,7 @@ public:
 
 private:
     PreprocessedQuery preprocess_query(const Query& query) const;
-    void match_(const PreprocessedQuery& query, const Expression& expr, const Start& start, QuerySetDraft& dest) const;
+    void match_(const PreprocessedQuery& query, const Plan& plan, const Start& start, QuerySetDraft& dest) const;
     void expand_negatives(const Graph& graph, const Position& start_pos, size_t first, QuerySetDraft& result) const;
 };
 

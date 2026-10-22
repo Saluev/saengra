@@ -91,6 +91,11 @@ TEST_F(PlannerTest, AdjacentEdgesBreakPath) {
     EXPECT_EQ(plan("user -friend> -friend> user"), "Concatenation(Path(user -friend->), Path(-friend-> user))");
 }
 
+TEST_F(PlannerTest, LongPathIsSplit) {
+    EXPECT_EQ(plan("user -friend> user -friend> user -friend> user"),
+              "Concatenation(Path(user -friend-> user -friend-> user), Path(-friend-> user))");
+}
+
 TEST_F(PlannerTest, SingleVertexIsNotPath) {
     EXPECT_EQ(plan("user"), "Vertex(user)");
 }

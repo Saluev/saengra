@@ -105,6 +105,26 @@ void Branch::iter_present_via_label(const EdgeLabel& label, std::vector<Edge>& d
     }, it->second);
 }
 
+void Branch::iter_present_to_vertex_via_labels(VertexID to, const std::vector<EdgeLabel>& labels, std::vector<Edge>& dest) const {
+    auto push_if_contains = [this, to, &dest](const EdgeLabel& label, const Leaf& leaf) {
+        if (boost::apply_visitor([to](const auto& l) { return l.contains(to); }, leaf)) {
+            push_edge(dest, label, to);
+        }
+    };
+    if (labels.empty()) {
+        for (const auto& [label, leaf] : leaves_) {
+            push_if_contains(label, leaf);
+        }
+        return;
+    }
+    for (const EdgeLabel& label : labels) {
+        auto it = leaves_.find(label);
+        if (it != leaves_.end()) {
+            push_if_contains(label, it->second);
+        }
+    }
+}
+
 // ============================================================================
 // Trunk
 // ============================================================================
@@ -339,6 +359,15 @@ std::vector<Edge> MutableEdgesContainer::iter_present_to_vertex_via_labels(Verte
 std::vector<Edge> MutableEdgesContainer::iter_present_via_labels(const std::vector<EdgeLabel>& labels) const {
     std::vector<Edge> result;
     forward_.iter_present_via_labels(labels, result);
+    return result;
+}
+
+std::vector<Edge> MutableEdgesContainer::iter_present_from_vertex_to_vertex(VertexID from, VertexID to, const std::vector<EdgeLabel>& labels) const {
+    std::vector<Edge> result;
+    const Branch* branch = forward_.get_branch(from);
+    if (branch) {
+        branch->iter_present_to_vertex_via_labels(to, labels, result);
+    }
     return result;
 }
 

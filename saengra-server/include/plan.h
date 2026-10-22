@@ -128,6 +128,8 @@ public:
 // vertex -edge> vertex <edge- ... — optimized by implementing simple nested loops (up to X levels deep)
 class MatchPath {
 public:
+    static constexpr size_t max_length = 5;  // vertices and edges
+
     PositionKind start;  // orbit means we start with edges[0], core — with vertices[0]
     std::vector<MatchEdge> edges;
     std::vector<MatchVertex> vertices;
