@@ -7,6 +7,7 @@ namespace saengra {
 
 struct PreprocessedQuery {
     const Graph& graph;
+    const PlaceholderValues& placeholder_values;
     std::vector<std::optional<VertexID>> placeholder_value_ids;
 };
 

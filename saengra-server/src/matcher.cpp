@@ -92,10 +92,11 @@ public:
 
         std::optional<VertexID> to;
         if (plan.vertex.placeholder_idx.has_value()) {
-            to = query_.placeholder_value_ids[plan.vertex.placeholder_idx.value()];
+            const auto placeholder_idx = plan.vertex.placeholder_idx.value();
+            to = query_.placeholder_value_ids[placeholder_idx];
             if (!to.has_value()) {
-                // Placeholder is not in graph (and never has been) — so no edge can lead to it.
-                add_edge_deps(plan.edge, start_.position.vertex_id);
+                // Placeholder is not in graph (and never has been) — so no edge can lead to it until it's added.
+                dest_.deps.emplace_back(ParticularVertex(query_.placeholder_values[placeholder_idx]), start_.origin);
                 return;
             }
         } else {
@@ -113,7 +114,7 @@ public:
         }
 
         const VertexID from = start_.position.vertex_id;
-        add_edge_deps(plan.edge, from);
+        add_particular_edge_deps(plan.edge, from, *to);
         const auto& edges = query_.graph.get_edges();
         std::vector<Edge> matched;
         switch (plan.edge.direction) {
@@ -618,6 +619,23 @@ private:
         }
     }
 
+    // Deps on the edges between two vertices, which are all that matching an edge between them depends on.
+    void add_particular_edge_deps(const MatchEdge& plan, VertexID from, VertexID to) const {
+        if (plan.labels.empty()) {
+            // Edges with any label can't be listed, so the deps are on all edges of the vertex.
+            add_edge_deps(plan, from);
+            return;
+        }
+        for (const auto label : plan.labels) {
+            if (plan.direction != Direction::Backward) {
+                dest_.deps.emplace_back(ParticularEdge{Edge{from, label, to}}, start_.origin);
+            }
+            if (plan.direction != Direction::Forward) {
+                dest_.deps.emplace_back(ParticularEdge{Edge{to, label, from}}, start_.origin);
+            }
+        }
+    }
+
     template<typename EdgeObservable, typename EdgeWithLabelObservable>
     void add_edge_deps(const MatchEdge& plan, VertexID vertex_id) const {
         if (plan.labels.empty()) {
@@ -807,6 +825,7 @@ PreprocessedQuery Matcher::preprocess_query(const Query& query) const {
     }
     return PreprocessedQuery{
         query.graph,
+        query.placeholder_values,
         placeholder_value_ids,
     };
 }

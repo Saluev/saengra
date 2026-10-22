@@ -340,6 +340,7 @@ Observations ObserverContainer::collect_observations(const GraphChanges& changes
             observe(EdgeFromWithLabel(e.from, e.label));
             observe(EdgeTo(e.to));
             observe(EdgeToWithLabel(e.to, e.label));
+            observe(ParticularEdge(e));
         }
     }
     for (const auto& e : changes.removed_edges) {
@@ -347,6 +348,7 @@ Observations ObserverContainer::collect_observations(const GraphChanges& changes
         observe(EdgeFromWithLabel(e.from, e.label));
         observe(EdgeTo(e.to));
         observe(EdgeToWithLabel(e.to, e.label));
+        observe(ParticularEdge(e));
     }
 
     Observations result;

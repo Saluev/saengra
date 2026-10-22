@@ -82,6 +82,15 @@ struct EdgeToWithLabel {
     }
 };
 
+struct ParticularEdge {
+    Edge edge;
+
+    inline bool operator==(const ParticularEdge& other) const = default;
+    inline bool operator<(const ParticularEdge& other) const {
+        return edge < other.edge;
+    }
+};
+
 // Inheritance instead of type alias for more readable profiling reports.
 class Observable : public boost::variant<
     NewVertex,
@@ -92,7 +101,8 @@ class Observable : public boost::variant<
     EdgeFrom,
     EdgeFromWithLabel,
     EdgeTo,
-    EdgeToWithLabel
+    EdgeToWithLabel,
+    ParticularEdge
 > {
 public:
     using variant::variant;
@@ -101,7 +111,8 @@ public:
         NewVertex, NewVertexOfType, ParticularVertex,
         NewEdge, NewEdgeWithLabel,
         EdgeFrom, EdgeFromWithLabel,
-        EdgeTo, EdgeToWithLabel
+        EdgeTo, EdgeToWithLabel,
+        ParticularEdge
     >;
     Observable() = default;
     Observable(const Observable&) = default;
@@ -168,6 +179,7 @@ std::ostream& operator<<(std::ostream& os, const EdgeFrom& obj);
 std::ostream& operator<<(std::ostream& os, const EdgeFromWithLabel& obj);
 std::ostream& operator<<(std::ostream& os, const EdgeTo& obj);
 std::ostream& operator<<(std::ostream& os, const EdgeToWithLabel& obj);
+std::ostream& operator<<(std::ostream& os, const ParticularEdge& obj);
 std::ostream& operator<<(std::ostream& os, const Observable& obj);
 std::ostream& operator<<(std::ostream& os, const Observation& obj);
 
@@ -228,6 +240,14 @@ template <>
 struct hash<saengra::EdgeToWithLabel> {
     std::size_t operator()(const saengra::EdgeToWithLabel& v) const {
         return absl::Hash<std::tuple<saengra::VertexID, size_t>>()(make_tuple(v.to_id, (size_t)(v.label.text)));
+    }
+};
+
+template <>
+struct hash<saengra::ParticularEdge> {
+    std::size_t operator()(const saengra::ParticularEdge& v) const {
+        return absl::Hash<std::tuple<saengra::VertexID, size_t, saengra::VertexID>>()(
+            make_tuple(v.edge.from, (size_t)(v.edge.label.text), v.edge.to));
     }
 };
 

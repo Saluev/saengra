@@ -38,6 +38,10 @@ std::ostream& operator<<(std::ostream& os, const EdgeToWithLabel& obj) {
     return os << "EdgeToWithLabel(to=" << obj.to_id << ", label='" << obj.label << "')";
 }
 
+std::ostream& operator<<(std::ostream& os, const ParticularEdge& obj) {
+    return os << "ParticularEdge(edge=" << obj.edge << ")";
+}
+
 namespace {
     struct PrintVisitor : boost::static_visitor<> {
         std::ostream& os;
