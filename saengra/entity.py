@@ -121,6 +121,7 @@ class EntityMeta(type):
             "_cache_initialized",
             "_env",
             "_inverse",
+            "_hash",
             "alive",
             "primitive",
         ]
@@ -181,6 +182,7 @@ class Entity(metaclass=EntityMeta):
     """Whether the entity's corresponding primitive currently exists in the graph."""
     _env: EnvProtocol
     _inverse: InverseRefs
+    _hash: int | None
 
     def __init_subclass__(cls) -> None:
         from saengra.utilities.annotations import parse_annotation
@@ -238,6 +240,7 @@ class Entity(metaclass=EntityMeta):
             return e
 
         e = object.__new__(cls)
+        e._hash = hash(primitive)
         e._inverse = set()
         e._cache_initialized = False
         e.alive = False
@@ -270,7 +273,9 @@ class Entity(metaclass=EntityMeta):
     __delattr__ = object.__delattr__
 
     def __hash__(self) -> int:
-        return hash(self.primitive)
+        if self._hash is None:
+            self._hash = hash(self.primitive)
+        return self._hash
 
     def __lt__(self, other: Any) -> bool:
         match other:
