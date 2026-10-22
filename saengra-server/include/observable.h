@@ -4,6 +4,7 @@
 #include <boost/variant.hpp>
 #include "vertex.h"
 #include "edge.h"
+#include "refs.h"
 
 namespace saengra {
 
@@ -91,6 +92,20 @@ struct ParticularEdge {
     }
 };
 
+// Subgraphs that a nested expression matches from a start position (core or orbit of the vertex)
+// with the refs changed. Issued by the incremental matcher itself, not by the graph.
+struct NestedExpressionSubgraph {
+    size_t expression_id;
+    VertexID vertex_id;
+    bool orbit;
+    Refs refs;
+
+    inline bool operator==(const NestedExpressionSubgraph& other) const = default;
+    inline bool operator<(const NestedExpressionSubgraph& other) const {
+        return std::tie(expression_id, vertex_id, orbit, refs) < std::tie(other.expression_id, other.vertex_id, other.orbit, other.refs);
+    }
+};
+
 // Inheritance instead of type alias for more readable profiling reports.
 class Observable : public boost::variant<
     NewVertex,
@@ -102,7 +117,8 @@ class Observable : public boost::variant<
     EdgeFromWithLabel,
     EdgeTo,
     EdgeToWithLabel,
-    ParticularEdge
+    ParticularEdge,
+    NestedExpressionSubgraph
 > {
 public:
     using variant::variant;
@@ -112,7 +128,8 @@ public:
         NewEdge, NewEdgeWithLabel,
         EdgeFrom, EdgeFromWithLabel,
         EdgeTo, EdgeToWithLabel,
-        ParticularEdge
+        ParticularEdge,
+        NestedExpressionSubgraph
     >;
     Observable() = default;
     Observable(const Observable&) = default;
@@ -180,6 +197,7 @@ std::ostream& operator<<(std::ostream& os, const EdgeFromWithLabel& obj);
 std::ostream& operator<<(std::ostream& os, const EdgeTo& obj);
 std::ostream& operator<<(std::ostream& os, const EdgeToWithLabel& obj);
 std::ostream& operator<<(std::ostream& os, const ParticularEdge& obj);
+std::ostream& operator<<(std::ostream& os, const NestedExpressionSubgraph& obj);
 std::ostream& operator<<(std::ostream& os, const Observable& obj);
 std::ostream& operator<<(std::ostream& os, const Observation& obj);
 
@@ -248,6 +266,14 @@ struct hash<saengra::ParticularEdge> {
     std::size_t operator()(const saengra::ParticularEdge& v) const {
         return absl::Hash<std::tuple<saengra::VertexID, size_t, saengra::VertexID>>()(
             make_tuple(v.edge.from, (size_t)(v.edge.label.text), v.edge.to));
+    }
+};
+
+template <>
+struct hash<saengra::NestedExpressionSubgraph> {
+    std::size_t operator()(const saengra::NestedExpressionSubgraph& v) const {
+        return absl::Hash<std::tuple<size_t, saengra::VertexID, bool, size_t>>()(
+            make_tuple(v.expression_id, v.vertex_id, v.orbit, std::hash<saengra::Refs>{}(v.refs)));
     }
 };
 

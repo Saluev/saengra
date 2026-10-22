@@ -101,6 +101,9 @@ inline std::ostream& operator<<(std::ostream& os, const ObservableStartPosition&
     if (auto p = std::get_if<EveryAddedEdge>(&obj)) {
         os << "EveryAddedEdge";
     }
+    if (auto p = std::get_if<NestedExpressionStart>(&obj)) {
+        os << "NestedExpressionStart(" << p->expression_id << ", " << p->position << ")";
+    }
     return os;
 }
 

@@ -30,8 +30,8 @@ struct SubscriptionChanges {
 class Observer {
 public:
     inline ObserverID get_id() const { return id_; }
-    Observer(ObserverID id, Graph& graph, const saengra_api::Observe_Observer& request);
-    Observer(ObserverID id, Graph& graph, const std::string& expression,
+    Observer(ObserverID id, Graph& graph, NestedExpressionRegistry& nested_registry, const saengra_api::Observe_Observer& request);
+    Observer(ObserverID id, Graph& graph, NestedExpressionRegistry& nested_registry, const std::string& expression,
              const PlaceholderValues& placeholder_values,
              bool on_create, bool on_change, bool on_delete, bool with_subgraphs);
     inline SubscriptionChanges reinitialize() { return {matcher_.reinitialize(), {}}; }
@@ -70,9 +70,15 @@ public:
     void reinitialize_all();
 private:
     Graph& graph_;
+    NestedExpressionRegistry nested_registry_;
 
     std::unordered_map<ObserverID, std::unique_ptr<Observer>> observers_;
     std::unordered_map<Observable, Observers> subscriptions_;
+
+    // Observers with the observations they're subscribed to: graph changes, and changes of the
+    // nested expressions they consist of.
+    std::vector<std::pair<Observer*, Observations>> route_observations(const GraphChanges& changes);
+    void evict_unused_nested();
 
     void apply_subscription_changes(ObserverID observer_id, const SubscriptionChanges& changes);
     // Observations of the changes that some observer is subscribed to.

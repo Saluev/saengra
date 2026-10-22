@@ -9,8 +9,12 @@
 
 namespace saengra {
 
-IncrementalMatcher::IncrementalMatcher(const Matcher& matcher, const Query& query)
-    : matcher_(matcher), query_(query) {}
+IncrementalMatcher::IncrementalMatcher(const Matcher& matcher, const Query& query, NestedExpressionRegistry* nested_registry)
+    : matcher_(matcher), query_(query), nested_registry_(nested_registry) {
+    if (nested_registry_ != nullptr) {
+        nested_registry_->register_plan(query_.plan, query_.placeholder_values);
+    }
+}
 
 // Groups deps by start positions; deps of each start position are sorted and deduplicated.
 static std::vector<std::pair<ObservableStartPosition, Observables>> group_deps(QuerySetObservables&& qsos) {
@@ -41,13 +45,14 @@ static std::vector<std::pair<ObservableStartPosition, Observables>> group_deps(Q
 }
 
 Observables IncrementalMatcher::reinitialize() {
+    dep_to_positions_.clear();
+    start_to_deps_.clear();
+
     StartPositionFinder finder;
     auto start_positions = finder.find_start_positions(query_);
-    auto last_qs = matcher_.match(query_, start_positions);
+    auto last_qs = matcher_.match(query_, start_positions, nested_registry_);
 
     last_sp_to_sgs_ = calc_sg_by_sp(std::move(last_qs.subgraphs));
-    dep_to_positions_.clear();
-    position_to_deps_.clear();
 
     // Return observables that we have to subscribe to immediately.
     Observables result;
@@ -56,9 +61,7 @@ Observables IncrementalMatcher::reinitialize() {
         for (const Observable& dep : deps) {
             subscribe(sp, dep, result, removed);
         }
-        if (const auto* position = std::get_if<Position>(&sp)) {
-            position_to_deps_[*position] = std::move(deps);
-        }
+        start_to_deps_[sp] = std::move(deps);
     }
     for (auto& [sp, deps] : group_deps(std::move(last_qs.start_deps))) {
         for (const Observable& dep : deps) {
@@ -86,7 +89,7 @@ void IncrementalMatcher::subscribe(const ObservableStartPosition& sp, const Obse
     }
 }
 
-void IncrementalMatcher::unsubscribe(const Position& sp, const Observable& dep, ObservableSet& removed_deps) {
+void IncrementalMatcher::unsubscribe(const ObservableStartPosition& sp, const Observable& dep, ObservableSet& removed_deps) {
     auto dep_it = dep_to_positions_.find(dep);
     if (dep_it != dep_to_positions_.end()) {
         dep_it->second.erase(sp);
@@ -96,7 +99,7 @@ void IncrementalMatcher::unsubscribe(const Position& sp, const Observable& dep, 
     }
 }
 
-void IncrementalMatcher::resubscribe(const Position& sp, const Observables& old_deps, const Observables& new_deps,
+void IncrementalMatcher::resubscribe(const ObservableStartPosition& sp, const Observables& old_deps, const Observables& new_deps,
                                      Observables& added_deps, ObservableSet& removed_deps) {
     auto old_it = old_deps.begin();
     auto new_it = new_deps.begin();
@@ -110,32 +113,6 @@ void IncrementalMatcher::resubscribe(const Position& sp, const Observables& old_
             ++new_it;
         }
     }
-}
-
-std::unordered_set<Position> IncrementalMatcher::iter_start_positions_needing_rematch(const Observations& os) const {
-    std::unordered_set<Position> result;
-    for (const Observation& o : os) {
-        auto it = dep_to_positions_.find(o.observable);
-        if (it == dep_to_positions_.end()) {
-            continue;
-        }
-        for (const ObservableStartPosition& arg : it->second) {
-            if (std::holds_alternative<EveryAddedVertex>(arg)) {
-                for (VertexID vid : o.added_vertex_ids) {
-                    result.emplace(vid, PositionKind::CORE);
-                }
-            } else if (std::holds_alternative<EveryAddedEdge>(arg)) {
-                for (const Edge& edge : o.added_edges) {
-                    // TODO only necessary directions?..
-                    result.emplace(edge.from, PositionKind::ORBIT);
-                    result.emplace(edge.to, PositionKind::ORBIT);
-                }
-            } else if (std::holds_alternative<Position>(arg)) {
-                result.insert(std::get<Position>(arg));
-            }
-        }
-    }
-    return result;
 }
 
 static const std::vector<Subgraph>& find_subgraphs(const PositionToSubgraphs& sg_by_sp, const Position& sp) {
@@ -203,12 +180,33 @@ SubgraphChanges IncrementalMatcher::find_subgraph_changes(
 }
 
 IncrementalUpdate IncrementalMatcher::match_incrementally(const Observations& os) {
-    auto start_positions = iter_start_positions_needing_rematch(os);
+    std::unordered_set<Position> start_positions;
+    for (const Observation& o : os) {
+        auto it = dep_to_positions_.find(o.observable);
+        if (it == dep_to_positions_.end()) {
+            continue;
+        }
+        for (const ObservableStartPosition& arg : it->second) {
+            if (const auto* position = std::get_if<Position>(&arg)) {
+                start_positions.insert(*position);
+            } else if (std::holds_alternative<EveryAddedVertex>(arg)) {
+                for (VertexID vid : o.added_vertex_ids) {
+                    start_positions.emplace(vid, PositionKind::CORE);
+                }
+            } else if (std::holds_alternative<EveryAddedEdge>(arg)) {
+                for (const Edge& edge : o.added_edges) {
+                    // TODO only necessary directions?..
+                    start_positions.emplace(edge.from, PositionKind::ORBIT);
+                    start_positions.emplace(edge.to, PositionKind::ORBIT);
+                }
+            }
+        }
+    }
 
     std::vector<Position> sp_vec(start_positions.begin(), start_positions.end());
     StartPositions sp_struct{std::move(sp_vec), {}};
 
-    QuerySet curr_qs = matcher_.match(query_, sp_struct);
+    QuerySet curr_qs = matcher_.match(query_, sp_struct, nested_registry_);
 
     spdlog::debug("Incremental matcher triggered with {} observations, matched from {} start positions, found {} subgraphs", BRIGHT_WHITE(os.size()), BRIGHT_WHITE(start_positions.size()), BRIGHT_WHITE(curr_qs.subgraphs.size()));
 
@@ -231,18 +229,18 @@ IncrementalUpdate IncrementalMatcher::match_incrementally(const Observations& os
             continue;
         }
         sps_with_deps.insert(*position);
-        auto& old_deps = position_to_deps_[*position];
-        resubscribe(*position, old_deps, deps, added_deps, unused_deps);
+        auto& old_deps = start_to_deps_[sp];
+        resubscribe(sp, old_deps, deps, added_deps, unused_deps);
         old_deps = std::move(deps);
     }
     for (const Position& sp : start_positions) {
         if (sps_with_deps.contains(sp)) {
             continue;
         }
-        auto it = position_to_deps_.find(sp);
-        if (it != position_to_deps_.end()) {
+        auto it = start_to_deps_.find(ObservableStartPosition(sp));
+        if (it != start_to_deps_.end()) {
             resubscribe(sp, it->second, {}, added_deps, unused_deps);
-            position_to_deps_.erase(it);
+            start_to_deps_.erase(it);
         }
     }
     Observables removed_deps;

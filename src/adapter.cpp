@@ -1008,7 +1008,8 @@ static PyObject* DirectAdapter_match(DirectAdapterObject* self, PyObject* args) 
         saengra::Expression expr = parser.parse(expression);
 
         // Create query
-        saengra::Query query = saengra::make_query(*self->graph, expr, placeholder_values);
+        // Matched once, so nested expressions wouldn't be reused.
+        saengra::Query query = saengra::make_query(*self->graph, expr, placeholder_values, /*nest_operands=*/false);
 
         // Find start positions
         saengra::StartPositionFinder finder;

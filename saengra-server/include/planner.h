@@ -9,7 +9,9 @@ namespace saengra {
 // their structure and on which refs are guaranteed to be set at each point of the expression.
 class Planner {
 public:
-    Plan plan(const Expression& expr) const;
+    // With `nest_operands`, operands of operations and of & are nested expressions, whose subgraphs
+    // the incremental matcher caches. It's pointless for queries that are matched only once.
+    Plan plan(const Expression& expr, bool nest_operands = true) const;
 };
 
 } // namespace saengra

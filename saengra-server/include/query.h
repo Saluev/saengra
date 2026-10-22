@@ -31,7 +31,7 @@ inline size_t count_placeholders(const Expression& expr) {
     return count;
 }
 
-inline Query make_query(const Graph& graph, Expression expression, PlaceholderValues placeholder_values) {
+inline Query make_query(const Graph& graph, Expression expression, PlaceholderValues placeholder_values, bool nest_operands = true) {
     const size_t expected = count_placeholders(expression);
     if (placeholder_values.size() != expected) {
         throw std::invalid_argument(
@@ -40,7 +40,7 @@ inline Query make_query(const Graph& graph, Expression expression, PlaceholderVa
             " placeholder value(s) were provided"
         );
     }
-    Plan plan = Planner().plan(expression);
+    Plan plan = Planner().plan(expression, nest_operands);
     return Query{graph, std::move(expression), std::move(placeholder_values), std::move(plan)};
 }
 

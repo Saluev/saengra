@@ -53,6 +53,7 @@ add_library(saengra_core STATIC
     src/expression.cpp
     src/parser.cpp
     src/plan.cpp
+    src/nested_registry.cpp
     src/planner.cpp
     src/observable.cpp
     src/observer_container.cpp

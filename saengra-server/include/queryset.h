@@ -44,7 +44,22 @@ struct EveryAddedEdge {
     }
 };
 
-using ObservableStartPosition = std::variant<Position, AbsentPosition, EveryAddedVertex, EveryAddedEdge>;
+// A nested expression matched from a start position with the refs, whose subgraphs are cached.
+struct NestedExpressionStart {
+    size_t expression_id;
+    Position position;
+    Refs refs;
+
+    inline bool operator==(const NestedExpressionStart& other) const {
+        return expression_id == other.expression_id && position == other.position && refs == other.refs;
+    }
+
+    inline NestedExpressionSubgraph observable() const {
+        return NestedExpressionSubgraph{expression_id, position.vertex_id, position.kind == PositionKind::ORBIT, refs};
+    }
+};
+
+using ObservableStartPosition = std::variant<Position, AbsentPosition, EveryAddedVertex, EveryAddedEdge, NestedExpressionStart>;
 
 struct QuerySetObservable {
     Observable observable;
@@ -81,6 +96,14 @@ template<>
 struct hash<saengra::EveryAddedVertex> {
     size_t operator()(const saengra::EveryAddedVertex& eav) const {
         return 1 << 10;
+    }
+};
+
+template<>
+struct hash<saengra::NestedExpressionStart> {
+    size_t operator()(const saengra::NestedExpressionStart& start) const {
+        return absl::Hash<std::tuple<size_t, size_t, saengra::PositionKind, size_t>>()(make_tuple(
+            start.expression_id, (size_t)start.position.vertex_id, start.position.kind, std::hash<saengra::Refs>{}(start.refs)));
     }
 };
 

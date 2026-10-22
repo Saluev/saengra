@@ -430,6 +430,36 @@ public:
         }
     }
 
+    void operator()(const MatchNestedExpression& plan) const {
+        if (query_.nested_results == nullptr) {
+            boost::apply_visitor(*this, plan.plan);
+            return;
+        }
+        // The cached subgraphs were matched with the refs the nested expression mentions only.
+        Refs refs = start_.refs.restricted_to(plan.refs);
+        dest_.deps.emplace_back(NestedExpressionStart{plan.id, start_.position, refs}.observable(), start_.origin);
+        for (const Subgraph& subgraph : query_.nested_results->get(plan, start_.position, refs)) {
+            auto combined_refs = start_.refs.intersect_with(subgraph.refs);
+            if (!combined_refs.has_value()) {
+                continue;
+            }
+            auto& draft = dest_.subgraphs.emplace_back(SubgraphDraft{
+                start_.position,
+                subgraph.end_positions,
+                {},
+                {},
+                std::move(*combined_refs),
+            });
+            if constexpr (collects_contents) {
+                draft.vertices = subgraph.vertices;
+                draft.edges = subgraph.edges;
+            }
+            if (enough()) {
+                return;
+            }
+        }
+    }
+
     void operator()(const MatchRepetition& plan) const {
         throw std::runtime_error("RepetitionExpr is not implemented");
     }
@@ -805,8 +835,8 @@ private:
 // Matcher implementation
 // ============================================================================
 
-QuerySet Matcher::match(const Query& query, const StartPositions& start_positions) const {
-    auto preprocessed_query = preprocess_query(query);
+QuerySet Matcher::match(const Query& query, const StartPositions& start_positions, NestedResults* nested_results) const {
+    auto preprocessed_query = preprocess_query(query, nested_results);
 
     std::vector<QuerySetObservable> deps;
     QuerySetDraft result{deps};
@@ -883,7 +913,18 @@ void Matcher::expand_negatives(const Graph& graph, const Position& start_pos, si
     }
 }
 
-PreprocessedQuery Matcher::preprocess_query(const Query& query) const {
+QuerySet Matcher::match_nested(const Query& query, const MatchNestedExpression& plan, const Position& position, const Refs& refs,
+                               NestedResults* nested_results) const {
+    auto preprocessed_query = preprocess_query(query, nested_results);
+    std::vector<QuerySetObservable> deps;
+    QuerySetDraft result{deps};
+    Start start{position, position, refs};
+    // Exclusions are kept as they are: they're only expanded in the results of the whole query.
+    match_(preprocessed_query, plan.plan, start, result);
+    return std::move(result).finalize();
+}
+
+PreprocessedQuery Matcher::preprocess_query(const Query& query, NestedResults* nested_results) const {
     std::vector<std::optional<VertexID>> placeholder_value_ids;
     for (const auto& placeholder_value : query.placeholder_values) {
         auto vertex_id = query.graph.get_vertices().get_vertex_id(placeholder_value);
@@ -893,6 +934,7 @@ PreprocessedQuery Matcher::preprocess_query(const Query& query) const {
         query.graph,
         query.placeholder_values,
         placeholder_value_ids,
+        nested_results,
     };
 }
 

@@ -42,6 +42,11 @@ std::ostream& operator<<(std::ostream& os, const ParticularEdge& obj) {
     return os << "ParticularEdge(edge=" << obj.edge << ")";
 }
 
+std::ostream& operator<<(std::ostream& os, const NestedExpressionSubgraph& obj) {
+    return os << "NestedExpressionSubgraph(expression_id=" << obj.expression_id << ", vertex=" << obj.vertex_id
+              << ", orbit=" << obj.orbit << ")";
+}
+
 namespace {
     struct PrintVisitor : boost::static_visitor<> {
         std::ostream& os;

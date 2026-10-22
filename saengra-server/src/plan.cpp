@@ -311,6 +311,18 @@ ConstNestedPlans MatchMaybe::iter_nested_plans() const {
     return ConstNestedPlans(&operand, 1);
 }
 
+std::string MatchNestedExpression::to_string() const {
+    return "Nested#" + std::to_string(id) + "(" + plan.to_string() + ")";
+}
+
+NestedPlans MatchNestedExpression::iter_nested_plans() {
+    return NestedPlans(&plan, 1);
+}
+
+ConstNestedPlans MatchNestedExpression::iter_nested_plans() const {
+    return ConstNestedPlans(&plan, 1);
+}
+
 MatchRepetition::MatchRepetition(int min, int max, Plan op)
         : operand(std::move(op)), min_repeats(min), max_repeats(max) {}
 

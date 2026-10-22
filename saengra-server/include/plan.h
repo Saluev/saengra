@@ -41,6 +41,7 @@ class MatchUnless;
 class MatchSkip;
 class MatchMaybe;
 class MatchRepetition;
+class MatchNestedExpression;
 
 class Plan: public boost::variant<
     boost::recursive_wrapper<MatchVertex>,
@@ -61,7 +62,8 @@ class Plan: public boost::variant<
     boost::recursive_wrapper<MatchUnless>,
     boost::recursive_wrapper<MatchSkip>,
     boost::recursive_wrapper<MatchMaybe>,
-    boost::recursive_wrapper<MatchRepetition>
+    boost::recursive_wrapper<MatchRepetition>,
+    boost::recursive_wrapper<MatchNestedExpression>
 > {
 public:
     std::string to_string() const;
@@ -274,6 +276,19 @@ public:
 class MatchMaybe {
 public:
     Plan operand;
+
+    std::string to_string() const;
+    NestedPlans iter_nested_plans();
+    ConstNestedPlans iter_nested_plans() const;
+};
+
+// A nested expression whose subgraphs are cached per start position and refs, so that heavy
+// operators using them only redo their work when the subgraphs actually change.
+class MatchNestedExpression {
+public:
+    size_t id;  // unique within the query, until the nested expression registry gives it a global one
+    std::vector<RefName> refs;  // sorted refs the nested expression mentions; only they are a part of the cache key
+    Plan plan;
 
     std::string to_string() const;
     NestedPlans iter_nested_plans();

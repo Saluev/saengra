@@ -16,7 +16,7 @@ PlaceholderValues convert_placeholder_values(Graph& graph, const saengra_api::Ob
     return result;
 }
 
-Observer::Observer(ObserverID id, Graph& graph, const saengra_api::Observe_Observer& request):
+Observer::Observer(ObserverID id, Graph& graph, NestedExpressionRegistry& nested_registry, const saengra_api::Observe_Observer& request):
     id_(id),
     graph_(graph),
     matcher_(
@@ -25,7 +25,8 @@ Observer::Observer(ObserverID id, Graph& graph, const saengra_api::Observe_Obser
             graph,
             Parser(graph).parse(request.expression()),
             convert_placeholder_values(graph, request)
-        )
+        ),
+        &nested_registry
     ),
     on_create_(request.on_create()),
     on_change_(request.on_change()),
@@ -33,7 +34,7 @@ Observer::Observer(ObserverID id, Graph& graph, const saengra_api::Observe_Obser
     with_subgraphs_(request.with_subgraphs()) {
 }
 
-Observer::Observer(ObserverID id, Graph& graph, const std::string& expression,
+Observer::Observer(ObserverID id, Graph& graph, NestedExpressionRegistry& nested_registry, const std::string& expression,
                    const PlaceholderValues& placeholder_values,
                    bool on_create, bool on_change, bool on_delete, bool with_subgraphs):
     id_(id),
@@ -44,7 +45,8 @@ Observer::Observer(ObserverID id, Graph& graph, const std::string& expression,
             graph,
             Parser(graph).parse(expression),
             placeholder_values
-        )
+        ),
+        &nested_registry
     ),
     on_create_(on_create),
     on_change_(on_change),
@@ -183,7 +185,7 @@ SubscriptionChanges Observer::observe_native(const Observations& observations, s
 }
 
 ObserverContainer::ObserverContainer(Graph& graph):
-    graph_(graph) {
+    graph_(graph), nested_registry_(graph) {
 }
 
 void ObserverContainer::register_(const saengra_api::Observe_Observer& request) {
@@ -192,7 +194,7 @@ void ObserverContainer::register_(const saengra_api::Observe_Observer& request) 
         throw std::runtime_error("Observer with ID '" + observer_id + "' is already registered");
     }
 
-    auto observer = std::make_unique<Observer>(observer_id, graph_, request);
+    auto observer = std::make_unique<Observer>(observer_id, graph_, nested_registry_, request);
     auto initial_subscriptions = observer->reinitialize();
     observers_[observer_id] = std::move(observer);
     apply_subscription_changes(observer_id, initial_subscriptions);
@@ -206,78 +208,59 @@ void ObserverContainer::register_native(const std::string& id, const std::string
         throw std::runtime_error("Observer with ID '" + observer_id + "' is already registered");
     }
 
-    auto observer = std::make_unique<Observer>(observer_id, graph_, expression, placeholder_values, on_create, on_change, on_delete, with_subgraphs);
+    auto observer = std::make_unique<Observer>(observer_id, graph_, nested_registry_, expression, placeholder_values, on_create, on_change, on_delete, with_subgraphs);
     auto initial_subscriptions = observer->reinitialize();
     observers_[observer_id] = std::move(observer);
     apply_subscription_changes(observer_id, initial_subscriptions);
 }
 
-struct ObserverWithObservations {
-    ObserverWithObservations(Observer* observer) : observer(observer) {}
+std::vector<std::pair<Observer*, Observations>> ObserverContainer::route_observations(const GraphChanges& changes) {
+    Observations observations = collect_observations(changes);
+    // Cached nested expressions are rematched first, so that observers see their new subgraphs.
+    Observations nested_observations = nested_registry_.update(observations);
+    observations.insert(observations.end(), std::make_move_iterator(nested_observations.begin()), std::make_move_iterator(nested_observations.end()));
 
-    Observer* observer;
-    Observations observations;
-};
-
-std::vector<saengra_api::CommitResponse_Observation> ObserverContainer::observe_proto(const GraphChanges& changes) {
-    const Observations observations = collect_observations(changes);
-
-//    std::cerr << "Observing " << observations.size() << " observations:" << std::endl;
-//    for (const auto& observation : observations) {
-//        std::cerr << "    " << observation << std::endl;
-//    }
-//    std::cerr << "Current subscriptions:" << std::endl;
-//    for (const auto& [observable, observers] : subscriptions_) {
-//        std::cerr << "    " << observable << ":";
-//        for (Observer* observer : observers) {
-//            std::cerr << " " << observer->get_id();
-//        }
-//        std::cerr << std::endl;
-//    }
-
-    std::vector<saengra_api::CommitResponse_Observation> result;
-
-    std::unordered_map<ObserverID, ObserverWithObservations> id_to_obs;
+    std::vector<std::pair<Observer*, Observations>> result;
+    std::unordered_map<Observer*, size_t> observer_idx;
     for (const Observation& observation : observations) {
         auto sub_it = subscriptions_.find(observation.observable);
         if (sub_it == subscriptions_.end()) {
             continue;
         }
         for (Observer* observer : sub_it->second) {
-            auto [it, inserted] = id_to_obs.try_emplace(observer->get_id(), observer);
-            it->second.observations.push_back(observation);
+            auto [it, inserted] = observer_idx.try_emplace(observer, result.size());
+            if (inserted) {
+                result.emplace_back(observer, Observations{});
+            }
+            result[it->second].second.push_back(observation);
         }
-    }
-
-    for (auto [subscriber_id, sub_and_obs] : id_to_obs) {
-//        std::cerr << "Observer " << subscriber_id << " is observing " << sub_and_obs.observations.size() << " observations" << std::endl;
-        auto subscription_changes = sub_and_obs.observer->observe_proto(sub_and_obs.observations, result);
-        apply_subscription_changes(subscriber_id, subscription_changes);
     }
     return result;
 }
 
+void ObserverContainer::evict_unused_nested() {
+    nested_registry_.evict_unused([this](const Observable& observable) {
+        return subscriptions_.contains(observable);
+    });
+}
+
+std::vector<saengra_api::CommitResponse_Observation> ObserverContainer::observe_proto(const GraphChanges& changes) {
+    std::vector<saengra_api::CommitResponse_Observation> result;
+    for (auto& [observer, observations] : route_observations(changes)) {
+        auto subscription_changes = observer->observe_proto(observations, result);
+        apply_subscription_changes(observer->get_id(), subscription_changes);
+    }
+    evict_unused_nested();
+    return result;
+}
+
 std::vector<NativeObservation> ObserverContainer::observe_native(const GraphChanges& changes) {
-    const Observations observations = collect_observations(changes);
-
     std::vector<NativeObservation> result;
-
-    std::unordered_map<ObserverID, ObserverWithObservations> id_to_obs;
-    for (const Observation& observation : observations) {
-        auto sub_it = subscriptions_.find(observation.observable);
-        if (sub_it == subscriptions_.end()) {
-            continue;
-        }
-        for (Observer* observer : sub_it->second) {
-            auto [it, inserted] = id_to_obs.try_emplace(observer->get_id(), observer);
-            it->second.observations.push_back(observation);
-        }
+    for (auto& [observer, observations] : route_observations(changes)) {
+        auto subscription_changes = observer->observe_native(observations, result);
+        apply_subscription_changes(observer->get_id(), subscription_changes);
     }
-
-    for (auto [subscriber_id, sub_and_obs] : id_to_obs) {
-        auto subscription_changes = sub_and_obs.observer->observe_native(sub_and_obs.observations, result);
-        apply_subscription_changes(subscriber_id, subscription_changes);
-    }
+    evict_unused_nested();
     return result;
 }
 
@@ -290,6 +273,7 @@ void ObserverContainer::apply_subscription_changes(ObserverID observer_id, const
         subscriptions_[observable].insert(&observer);
     }
     for (const auto& observable : changes.removed_observables) {
+        nested_registry_.mark_maybe_unused(observable);
         auto obs_it = subscriptions_.find(observable);
         if (obs_it != subscriptions_.end()) {
             obs_it->second.erase(&observer);
@@ -303,7 +287,7 @@ void ObserverContainer::apply_subscription_changes(ObserverID observer_id, const
 Observations ObserverContainer::collect_observations(const GraphChanges& changes) const {
     std::unordered_map<Observable, Observation> observations;
     auto observe = [this, &observations](Observable observable) -> Observation* {
-        if (!subscriptions_.contains(observable)) {
+        if (!subscriptions_.contains(observable) && !nested_registry_.depends_on(observable)) {
             return nullptr;
         }
         auto [it, inserted] = observations.try_emplace(observable, observable);
@@ -361,6 +345,7 @@ Observations ObserverContainer::collect_observations(const GraphChanges& changes
 
 void ObserverContainer::reinitialize_all() {
     subscriptions_.clear();
+    nested_registry_.clear();
     for (auto& observer : observers_) {
         const auto changes = observer.second->reinitialize();
         apply_subscription_changes(observer.first, changes);

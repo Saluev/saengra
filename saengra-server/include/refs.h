@@ -102,3 +102,20 @@ struct RefsCell {
 std::vector<RefsCell> arrange(const std::vector<Refs>& refs);
 
 }
+
+namespace std {
+
+template <>
+struct hash<saengra::Refs> {
+    std::size_t operator()(const saengra::Refs& refs) const {
+        std::size_t result = refs.literals().size();
+        for (const saengra::Literal& literal : refs.literals()) {
+            result = result * 31 + std::hash<std::string>{}(literal.name);
+            result = result * 31 + std::hash<saengra::VertexID>{}(literal.value);
+            result = result * 31 + literal.negative;
+        }
+        return result;
+    }
+};
+
+}

@@ -17,14 +17,35 @@ RefNames intersected(const RefNames& a, const RefNames& b) {
     return result;
 }
 
-Plan plan_expression(const Expression& expr, RefNames& bound, RefNames& changed);
+struct PlanContext {
+    bool nest_operands;
+    size_t next_nested_id = 0;
+    // Refs that operations matched so far may set or exclude values of. They're specific to every
+    // candidate the operation matched, so nested expressions keyed by them are hardly ever reused.
+    RefNames set_by_operations = {};
+};
+
+Plan plan_expression(const Expression& expr, RefNames& bound, RefNames& changed, PlanContext& context);
+
+// Adds the refs that the expression mentions.
+void collect_refs(const Expression& expr, RefNames& refs) {
+    if (const auto* vertex_expr = boost::get<VertexExpr>(&expr)) {
+        if (vertex_expr->ref.has_value()) {
+            refs.insert(vertex_expr->ref.value());
+        }
+    }
+    for (const Expression& child : expr.iter_children()) {
+        collect_refs(child, refs);
+    }
+}
 
 // Plans an expression, given the refs `bound` to a vertex in every subgraph matched before it.
 // Updates `bound` with the refs bound after it, and adds to `changed` the refs whose values it may
 // set or exclude, so that the refs of the matched subgraphs may differ from the refs at the start.
 class PlanVisitor : public boost::static_visitor<Plan> {
 public:
-    PlanVisitor(RefNames& bound, RefNames& changed) : bound_(bound), changed_(changed) {}
+    PlanVisitor(RefNames& bound, RefNames& changed, PlanContext& context)
+        : bound_(bound), changed_(changed), context_(context) {}
 
     Plan operator()(const VertexExpr& expr) const {
         return Plan{plan_vertex(expr)};
@@ -53,7 +74,7 @@ public:
             } else {
                 add_paths(std::move(path), plans);
                 path.clear();
-                plans.push_back(plan_expression(*operand, bound_, changed_));
+                plans.push_back(plan_expression(*operand, bound_, changed_, context_));
             }
         }
         add_paths(std::move(path), plans);
@@ -70,7 +91,7 @@ public:
         Plans plans;
         for (const Expression& operand : expr.operands) {
             RefNames operand_bound = bound_;
-            plans.push_back(plan_expression(operand, operand_bound, changed_));
+            plans.push_back(plan_expression(operand, operand_bound, changed_, context_));
             bound = bound.has_value() ? intersected(*bound, operand_bound) : std::move(operand_bound);
         }
         if (bound.has_value()) {
@@ -86,10 +107,11 @@ public:
         Plans plans;
         for (const Expression& operand : expr.operands) {
             RefNames operand_bound = bound_;
-            plans.push_back(plan_expression(operand, operand_bound, changed));
+            plans.push_back(nested(operand, plan_expression(operand, operand_bound, changed, context_)));
             bound.insert(operand_bound.begin(), operand_bound.end());
         }
         bound_ = std::move(bound);
+        context_.set_by_operations.insert(changed.begin(), changed.end());
         if (changed.empty()) {
             return Plan{MatchAndWithoutSetRef{std::move(plans)}};
         }
@@ -102,7 +124,12 @@ public:
         switch (expr.op_type) {
             case OperationType::All: {
                 // Every resulting subgraph is merged from operand's subgraphs, and has their refs bound.
-                Plan operand = plan_expression(expr.operand, bound_, changed);
+                // The operands of & are nested expressions themselves, so that (all: ... & ...) stays fused.
+                Plan operand = plan_expression(expr.operand, bound_, changed, context_);
+                if (boost::get<AndExpr>(&expr.operand) == nullptr) {
+                    operand = nested(expr.operand, std::move(operand));
+                }
+                context_.set_by_operations.insert(changed.begin(), changed.end());
                 if (changed.empty()) {
                     return Plan{MatchAllWithoutSetRef{std::move(operand)}};
                 }
@@ -113,7 +140,8 @@ public:
                 return Plan{MatchAll{std::move(operand)}};
             }
             case OperationType::If: {
-                Plan operand = plan_expression(expr.operand, bound_, changed);
+                Plan operand = plan_expression(expr.operand, bound_, changed, context_);
+                context_.set_by_operations.insert(changed.begin(), changed.end());
                 if (changed.empty()) {
                     return Plan{MatchIfWithoutSetRef{std::move(operand)}};
                 }
@@ -124,13 +152,14 @@ public:
                 // The negation binds no refs, it only excludes values of shared ones. Local refs
                 // don't change anything outside of it.
                 RefNames operand_bound = bound_;
-                Plan operand = plan_expression(expr.operand, operand_bound, changed);
+                Plan operand = plan_expression(expr.operand, operand_bound, changed, context_);
                 RefNames shared_changed;
                 for (const RefName& ref : expr.shared_refs) {
                     if (changed.contains(ref)) {
                         shared_changed.insert(ref);
                     }
                 }
+                context_.set_by_operations.insert(shared_changed.begin(), shared_changed.end());
                 if (shared_changed.empty()) {
                     return Plan{MatchUnlessWithoutSetNonLocalRef{std::move(operand), expr.shared_refs}};
                 }
@@ -138,13 +167,17 @@ public:
                 return Plan{MatchUnless{std::move(operand), expr.shared_refs}};
             }
             case OperationType::Skip: {
-                Plan operand = plan_expression(expr.operand, bound_, changed_);
+                Plan operand = plan_expression(expr.operand, bound_, changed, context_);
+                context_.set_by_operations.insert(changed.begin(), changed.end());
+                changed_.insert(changed.begin(), changed.end());
                 return Plan{MatchSkip{std::move(operand)}};
             }
             case OperationType::Maybe: {
                 // If the operand doesn't match, nothing gets bound.
                 RefNames operand_bound = bound_;
-                Plan operand = plan_expression(expr.operand, operand_bound, changed_);
+                Plan operand = nested(expr.operand, plan_expression(expr.operand, operand_bound, changed, context_));
+                context_.set_by_operations.insert(changed.begin(), changed.end());
+                changed_.insert(changed.begin(), changed.end());
                 return Plan{MatchMaybe{std::move(operand)}};
             }
         }
@@ -153,7 +186,7 @@ public:
 
     Plan operator()(const RepetitionExpr& expr) const {
         RefNames operand_bound = bound_;
-        Plan operand = plan_expression(expr.operand, operand_bound, changed_);
+        Plan operand = plan_expression(expr.operand, operand_bound, changed_, context_);
         if (expr.min_repeats > 0) {
             bound_ = std::move(operand_bound);
         }
@@ -163,6 +196,33 @@ public:
 private:
     RefNames& bound_;
     RefNames& changed_;
+    PlanContext& context_;
+
+    // Operands of (all: ), (maybe: ) and &, whose subgraphs are joined, are nested expressions:
+    // their subgraphs are cached and shared by all observers. Except single steps, which are as cheap
+    // to match as to look up, and operands mentioning refs set by earlier operations, which are
+    // specific to every candidate the operations matched, so their subgraphs are hardly ever reused.
+    Plan nested(const Expression& expr, Plan plan) const {
+        if (!context_.nest_operands || is_single_step(plan)) {
+            return plan;
+        }
+        RefNames refs;
+        collect_refs(expr, refs);
+        if (!intersected(refs, context_.set_by_operations).empty()) {
+            return plan;
+        }
+        return Plan{MatchNestedExpression{context_.next_nested_id++, {refs.begin(), refs.end()}, std::move(plan)}};
+    }
+
+    static bool is_single_step(const Plan& plan) {
+        if (boost::get<MatchVertex>(&plan) || boost::get<MatchEdge>(&plan) || boost::get<MatchNoop>(&plan)) {
+            return true;
+        }
+        if (const auto* path_to_vertex = boost::get<MatchPathToVertex>(&plan)) {
+            return path_to_vertex->path.vertices.empty() && path_to_vertex->path.edges.empty();
+        }
+        return false;
+    }
 
     MatchVertex plan_vertex(const VertexExpr& expr) const {
         MatchVertex vertex;
@@ -253,16 +313,17 @@ private:
     }
 };
 
-Plan plan_expression(const Expression& expr, RefNames& bound, RefNames& changed) {
-    return boost::apply_visitor(PlanVisitor(bound, changed), expr);
+Plan plan_expression(const Expression& expr, RefNames& bound, RefNames& changed, PlanContext& context) {
+    return boost::apply_visitor(PlanVisitor(bound, changed, context), expr);
 }
 
 } // namespace
 
-Plan Planner::plan(const Expression& expr) const {
+Plan Planner::plan(const Expression& expr, bool nest_operands) const {
     RefNames bound;
     RefNames changed;
-    return plan_expression(expr, bound, changed);
+    PlanContext context{nest_operands};
+    return plan_expression(expr, bound, changed, context);
 }
 
 } // namespace saengra
