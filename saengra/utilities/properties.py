@@ -158,7 +158,8 @@ class RelatedOptionalEntityProperty(RelatedEntityPropertyBase):
 
         # Update graph
         from_, label = instance.primitive, self._label
-        instance._env.update(RemoveEdgesToAll(from_, label))
+        if current is not None:
+            instance._env.update(RemoveEdgesToAll(from_, label))
         if value is not None:
             if is_entity(value):
                 if not value.alive:
@@ -220,7 +221,8 @@ class RelatedEntityProperty(RelatedEntityPropertyBase):
 
         # Update graph
         from_, label = instance.primitive, self._label
-        instance._env.update(RemoveEdgesToAll(from_, label))
+        if current is not _uninitialized:
+            instance._env.update(RemoveEdgesToAll(from_, label))
         if is_entity(value):
             if not value.alive:
                 raise RuntimeError(
