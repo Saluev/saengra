@@ -53,7 +53,6 @@ private:
     Query query_;
 
     PositionToSubgraphs last_sp_to_sgs_;
-    QuerySetObservables start_deps_;
     DepToStartPositions dep_to_positions_;
     // Deps of start positions, sorted.
     absl::flat_hash_map<Position, Observables, std::hash<Position>> position_to_deps_;

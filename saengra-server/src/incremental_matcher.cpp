@@ -13,21 +13,25 @@ IncrementalMatcher::IncrementalMatcher(const Matcher& matcher, const Query& quer
     : matcher_(matcher), query_(query) {}
 
 // Groups deps by start positions; deps of each start position are sorted and deduplicated.
-static std::vector<std::pair<ObservableStartPosition, Observables>> group_deps(const QuerySetObservables& qsos) {
+static std::vector<std::pair<ObservableStartPosition, Observables>> group_deps(QuerySetObservables&& qsos) {
     std::vector<std::pair<ObservableStartPosition, Observables>> groups;
     absl::flat_hash_map<ObservableStartPosition, size_t, std::hash<ObservableStartPosition>> group_by_sp;
-    size_t group = 0;
-    for (const QuerySetObservable& d : qsos) {
-        // The matcher matches from one start position at a time, so deps of a start position are
-        // usually contiguous.
-        if (groups.empty() || !(groups[group].first == d.start_position)) {
-            auto [it, inserted] = group_by_sp.try_emplace(d.start_position, groups.size());
-            if (inserted) {
-                groups.emplace_back(d.start_position, Observables{});
-            }
-            group = it->second;
+    // The matcher matches from one start position at a time, so deps of a start position are
+    // usually contiguous: they're moved run by run.
+    for (auto run_begin = qsos.begin(); run_begin != qsos.end();) {
+        auto run_end = std::find_if(run_begin, qsos.end(), [&run_begin](const QuerySetObservable& d) {
+            return !(d.start_position == run_begin->start_position);
+        });
+        auto [it, inserted] = group_by_sp.try_emplace(run_begin->start_position, groups.size());
+        if (inserted) {
+            groups.emplace_back(run_begin->start_position, Observables{});
         }
-        groups[group].second.push_back(d.observable);
+        Observables& deps = groups[it->second].second;
+        deps.reserve(deps.size() + (run_end - run_begin));
+        for (auto d = run_begin; d != run_end; ++d) {
+            deps.push_back(std::move(d->observable));
+        }
+        run_begin = run_end;
     }
     for (auto& [sp, deps] : groups) {
         std::sort(deps.begin(), deps.end());
@@ -42,14 +46,13 @@ Observables IncrementalMatcher::reinitialize() {
     auto last_qs = matcher_.match(query_, start_positions);
 
     last_sp_to_sgs_ = calc_sg_by_sp(std::move(last_qs.subgraphs));
-    start_deps_ = std::move(last_qs.start_deps);
     dep_to_positions_.clear();
     position_to_deps_.clear();
 
     // Return observables that we have to subscribe to immediately.
     Observables result;
     ObservableSet removed;
-    for (auto& [sp, deps] : group_deps(last_qs.deps)) {
+    for (auto& [sp, deps] : group_deps(std::move(last_qs.deps))) {
         for (const Observable& dep : deps) {
             subscribe(sp, dep, result, removed);
         }
@@ -57,7 +60,7 @@ Observables IncrementalMatcher::reinitialize() {
             position_to_deps_[*position] = std::move(deps);
         }
     }
-    for (auto& [sp, deps] : group_deps(start_deps_)) {
+    for (auto& [sp, deps] : group_deps(std::move(last_qs.start_deps))) {
         for (const Observable& dep : deps) {
             subscribe(sp, dep, result, removed);
         }
@@ -219,7 +222,7 @@ IncrementalUpdate IncrementalMatcher::match_incrementally(const Observations& os
     Observables added_deps;
     ObservableSet unused_deps;
     std::unordered_set<Position> sps_with_deps;
-    for (auto& [sp, deps] : group_deps(curr_qs.deps)) {
+    for (auto& [sp, deps] : group_deps(std::move(curr_qs.deps))) {
         const auto* position = std::get_if<Position>(&sp);
         if (position == nullptr) {
             for (const Observable& dep : deps) {
