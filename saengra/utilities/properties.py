@@ -152,6 +152,10 @@ class RelatedOptionalEntityProperty(RelatedEntityPropertyBase):
         return _object_getattribute(instance, self._cache_attr_name)
 
     def __set__(self, instance: "Entity", value: Any) -> None:
+        current = _object_getattribute(instance, self._cache_attr_name)
+        if current is value:
+            return
+
         # Update graph
         from_, label = instance.primitive, self._label
         instance._env.update(RemoveEdgesToAll(from_, label))
@@ -210,6 +214,10 @@ class RelatedEntityProperty(RelatedEntityPropertyBase):
             ) from exc
 
     def __set__(self, instance: "Entity", value: Any) -> None:
+        current = _object_getattribute(instance, self._cache_attr_name)
+        if current is value:
+            return
+
         # Update graph
         from_, label = instance.primitive, self._label
         instance._env.update(RemoveEdgesToAll(from_, label))
