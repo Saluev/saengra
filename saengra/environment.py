@@ -242,7 +242,7 @@ class Environment(EnvProtocol):
                 raise RuntimeError("stuck in apply loop")
         after = perf_counter()
         logger.info(
-            f"Apply took {num_iterations} iterations, {after - before:.3f} seconds"
+            "Apply took %d iterations, %.3f seconds", num_iterations, after - before
         )
 
     def _do_commit(self) -> None:
@@ -259,7 +259,7 @@ class Environment(EnvProtocol):
                 raise RuntimeError("stuck in pre-commit loop")
         after = perf_counter()
         logger.info(
-            f"Commit took {num_iterations} iterations, {after - before:.3f} seconds"
+            "Commit took %d iterations, %.3f seconds", num_iterations, after - before
         )
 
     def _invoke_handlers(self, o: Observation) -> None:
