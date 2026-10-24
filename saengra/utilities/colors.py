@@ -4,13 +4,17 @@ from termcolor import colored
 class LazyColoredText:
     __slots__ = ("_text", "_color", "_attrs")
 
-    def __init__(self, text: object, color: str, attrs: list[str] | None = None) -> None:
+    def __init__(
+        self, text: object, color: str, attrs: list[str] | None = None
+    ) -> None:
         self._text = text
         self._color = color
         self._attrs = attrs
 
     def __str__(self) -> str:
-        return colored(str(self._text), self._color, attrs=self._attrs, force_color=True)
+        return colored(
+            str(self._text), self._color, attrs=self._attrs, force_color=True
+        )
 
 
 def blue(s: object) -> LazyColoredText:
