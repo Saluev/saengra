@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "saengra"
-version = "0.2.1"
+version = "0.2.2"
 description = "Reactive graph database with pattern matching"
 readme = "saengra/README.md"
 license = {text = "MIT"}
@@ -20,6 +20,8 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Programming Language :: C++",
     "Topic :: Database",
     "Topic :: Software Development :: Libraries :: Python Modules",
@@ -60,7 +62,7 @@ saengra = ["*.so", "*.pyd", "*.dylib"]
 # cibuildwheel configuration for multi-platform builds
 [tool.cibuildwheel]
 # Build for these Python versions
-build = "cp310-* cp311-* cp312-*"
+build = "cp311-* cp312-* cp313-* cp314-*"
 # Skip 32-bit builds and musllinux (alpine)
 skip = "*-win32 *-manylinux_i686 *-musllinux_*"
 

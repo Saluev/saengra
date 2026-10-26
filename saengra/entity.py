@@ -86,6 +86,20 @@ def _is_primitive_type(t: type) -> bool:
 InverseRefs: TypeAlias = set[tuple["Entity", Label]]
 
 
+def _get_namespace_annotations(ns: dict[str, Any]) -> dict[str, Any]:
+    if sys.version_info < (3, 14):
+        return ns.get("__annotations__", {})
+    # Since Python 3.14, the class namespace holds a function that evaluates annotations lazily (PEP 649).
+    import annotationlib
+
+    annotate = annotationlib.get_annotate_from_class_namespace(ns)
+    if annotate is None:
+        return {}
+    return annotationlib.call_annotate_function(
+        annotate, annotationlib.Format.FORWARDREF
+    )
+
+
 class EntityMeta(type):
     def __new__(mcls, name: str, bases: tuple[type, ...], ns: dict[str, Any]) -> type:
         from saengra.utilities.annotations import parse_annotation
@@ -96,7 +110,7 @@ class EntityMeta(type):
         )
 
         module = sys.modules[ns["__module__"]]
-        annotations = ns.get("__annotations__", {})
+        annotations = _get_namespace_annotations(ns)
 
         if name == "Entity" and module == getmodule(mcls):
             return super().__new__(mcls, name, bases, ns)
