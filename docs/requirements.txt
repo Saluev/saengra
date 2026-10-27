@@ -1,5 +1,5 @@
 mkdocs~=1.6.1
-mkdocstrings~=0.28.2
-mkdocstrings-python~=1.16.2
-mkdocs-autorefs==1.4.0
+mkdocstrings~=1.0.8
+mkdocstrings-python~=2.0.10
+mkdocs-autorefs~=1.4.5
 mkdocs-material
