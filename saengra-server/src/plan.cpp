@@ -323,12 +323,18 @@ ConstNestedPlans MatchNestedExpression::iter_nested_plans() const {
     return ConstNestedPlans(&plan, 1);
 }
 
-MatchRepetition::MatchRepetition(int min, int max, Plan op)
+MatchRepetition::MatchRepetition(unsigned min, std::optional<unsigned> max, Plan op)
         : operand(std::move(op)), min_repeats(min), max_repeats(max) {}
 
 std::string MatchRepetition::to_string() const {
     std::ostringstream oss;
-    oss << "Repetition" << min_repeats << "-" << max_repeats << "(" << operand.to_string() << ")";
+    oss << "Repetition" << min_repeats;
+    if (max_repeats.has_value()) {
+        oss << "-" << max_repeats.value();
+    } else {
+        oss << "+";
+    }
+    oss << "(" << operand.to_string() << ")";
     return oss.str();
 }
 

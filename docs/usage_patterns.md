@@ -198,7 +198,8 @@ To jump from vertex to vertex, we need a way to match an edge. Edge expression c
 --label-> (or -label>)
 <-label-- (or <label-)
 <-label-> (or <label>)
--- label1 | label2 | label3 ->
+<- backward_label & forward_label -> (or <backward_label&forward_label>)
+-- label1 | label2 | label3 ->       (or -label1|label2|label3>)
 --*->
 ```
 
@@ -216,10 +217,10 @@ going in both directions, and it returns a single subgraph with both edges.
 
 `<label1&label2>` is the same with different labels: it matches an incoming edge `label1` and an
 outgoing edge `label2` connecting the current vertex with the same neighbour, and returns a single
-subgraph with both edges. For example, `user <follows&friend> user` matches a user, a friend of theirs
-and that friend following them back, without having to name the friend. Either side may be `*` or a
-list of labels: every pair of matching edges with the same neighbour is a separate match. `<label>` is
-short for `<label&label>`, so `<a|b>` also matches an incoming `a` with an outgoing `b`.
+subgraph with both edges. For example, `user <follows&friend> user` matches a pair of users such that first one has
+added the second one to friends and at the same time the second one followed the first one. 
+Either side may be `*` or a `|`-separated list of labels: every pair of matching edges with the same neighbour is a
+separate match. `<label>` is  short for `<label&label>`, so `<a|b>` also matches an incoming `a` with an outgoing `b`.
 
 ## Noop expression
 
@@ -380,3 +381,30 @@ the way we reached them, useful for observers:
 user (all: (skip: <added_to_friends> user (<added_to_friends> user | .)) -name> str)
 ```
 In this example, we want the set of names but no other details, e.g., for updating the user's contact list.
+
+## (repeat: ) expression
+
+(repeat: ) expression is inspired by regex's repetition operators: `(...)*`, `(...)+`, `(...){2-5}`. 
+
+It matches nested expression several times in a row, like a concatenation of its copies:
+
+```text
+(repeat 3x: EXPR)     # exactly 3 times
+(repeat 2-5x: EXPR)   # from 2 to 5 times
+(repeat 2+x: EXPR)    # at least 2 times
+(repeat: EXPR)        # any number of times, including none
+```
+
+Repetition is greedy: it returns all the maximal chains of matches, i.e. the chains that can't be
+continued with one more match, or that have the maximum number of repeats. A chain that is the
+beginning of a longer one is not returned, and expressions following the repetition only continue the
+maximal chains. Maximal chains with fewer repeats than the minimum are dropped. Zero repeats match the
+empty graph, like `.`, so it's only matched if not a single repeat can be:
+```text
+# For each user, chains of mutual friends, as far as they go but at most 5 steps:
+user (repeat 1-5x: <friend> user)
+```
+
+There is no protection against cycles yet: chains may visit the same vertices again, and an unlimited
+repetition over a cycle never stops. Refs set inside a repetition keep their usual meaning, so every
+repeat has to match the same vertex for them.

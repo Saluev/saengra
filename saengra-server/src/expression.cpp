@@ -231,13 +231,18 @@ ConstChildren OperationExpr::iter_children() const {
     return ConstChildren(&operand, 1);
 }
 
-RepetitionExpr::RepetitionExpr(int min, int max, Expression op)
+RepetitionExpr::RepetitionExpr(unsigned min, std::optional<unsigned> max, Expression op)
         : min_repeats(min), max_repeats(max), operand(std::move(op)) {}
 
 std::string RepetitionExpr::to_string() const {
     std::ostringstream oss;
-    oss << "(repeat " << min_repeats << "-" << max_repeats << "x: "
-        << operand.to_string() << ")";
+    oss << "(repeat " << min_repeats;
+    if (!max_repeats.has_value()) {
+        oss << "+";
+    } else if (max_repeats.value() != min_repeats) {
+        oss << "-" << max_repeats.value();
+    }
+    oss << "x: " << operand.to_string() << ")";
     return oss.str();
 }
 

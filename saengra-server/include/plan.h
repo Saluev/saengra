@@ -299,10 +299,10 @@ public:
 class MatchRepetition {
 public:
     Plan operand;
-    int min_repeats;
-    int max_repeats;
+    unsigned min_repeats;
+    std::optional<unsigned> max_repeats;
 
-    MatchRepetition(int min, int max, Plan op);
+    MatchRepetition(unsigned min, std::optional<unsigned> max, Plan op);
 
     std::string to_string() const;
     NestedPlans iter_nested_plans();

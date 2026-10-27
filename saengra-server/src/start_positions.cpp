@@ -141,7 +141,11 @@ public:
     }
 
     void operator()(const RepetitionExpr& expr) const {
-        // For repetition, process the operand
+        if (expr.min_repeats == 0) {
+            // Zero repeats match the empty graph anywhere, like noop.
+            (*this)(NoopExpr{});
+            return;
+        }
         boost::apply_visitor(*this, expr.operand);
     }
 

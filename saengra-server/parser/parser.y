@@ -19,6 +19,11 @@ saengra::Expression* parse_result_raw = nullptr;
 // Vertices container for internalizing type names
 saengra::Graph* parse_graph = nullptr;
 
+// Number of repeats from tokens like `3`, `3x` or `3+x`.
+unsigned parse_count(const std::string& text) {
+    return static_cast<unsigned>(std::stoul(text));  // parses the leading digits
+}
+
 // Labels of an edge, where nullptr stands for any label.
 std::optional<std::vector<EdgeLabel>> to_labels(const std::vector<EdgeLabel>* labels) {
     if (labels == nullptr) {
@@ -47,7 +52,7 @@ std::optional<std::vector<EdgeLabel>> to_labels(const std::vector<EdgeLabel>* la
 %token TOKEN_LPAREN TOKEN_RPAREN TOKEN_COLON
 %token TOKEN_DOUBLE_DASH
 %token <edge_token> TOKEN_EDGE_START TOKEN_EDGE_END TOKEN_DASH
-%token <str> TOKEN_IDENTIFIER TOKEN_INTEGER TOKEN_INTEGER_X
+%token <str> TOKEN_IDENTIFIER TOKEN_INTEGER TOKEN_INTEGER_X TOKEN_INTEGER_PLUS_X
 
 %type <expr> expression or and concatenation atom operation group vertex edge noop
 %type <label_vec> edge_labels edge_label_list
@@ -264,20 +269,37 @@ operation:
         delete $3;
         $$ = new Expression{std::move(op)};
     }
+    | TOKEN_LPAREN TOKEN_REPEAT TOKEN_COLON expression TOKEN_RPAREN {
+        // Any number of repeats, including none.
+        RepetitionExpr rep{0, std::nullopt, std::move(*$4)};
+        delete $4;
+        $$ = new Expression{std::move(rep)};
+    }
     | TOKEN_LPAREN TOKEN_REPEAT TOKEN_INTEGER_X TOKEN_COLON expression TOKEN_RPAREN {
-        std::string num_str = *$3;
-        int repeats = std::stoi(num_str.substr(0, num_str.length() - 1));
+        const unsigned repeats = parse_count(*$3);
         delete $3;
         RepetitionExpr rep{repeats, repeats, std::move(*$5)};
         delete $5;
         $$ = new Expression{std::move(rep)};
     }
+    | TOKEN_LPAREN TOKEN_REPEAT TOKEN_INTEGER_PLUS_X TOKEN_COLON expression TOKEN_RPAREN {
+        // At least so many repeats, with no limit.
+        const unsigned min = parse_count(*$3);
+        delete $3;
+        RepetitionExpr rep{min, std::nullopt, std::move(*$5)};
+        delete $5;
+        $$ = new Expression{std::move(rep)};
+    }
     | TOKEN_LPAREN TOKEN_REPEAT TOKEN_INTEGER TOKEN_DASH TOKEN_INTEGER_X TOKEN_COLON expression TOKEN_RPAREN {
-        int min = std::stoi(*$3);
-        std::string max_str = *$5;
-        int max = std::stoi(max_str.substr(0, max_str.length() - 1));
+        const unsigned min = parse_count(*$3);
+        const unsigned max = parse_count(*$5);
         delete $3;
         delete $5;
+        if (min > max) {
+            yyerror("minimum number of repeats is greater than maximum");
+            delete $7;
+            YYERROR;
+        }
         RepetitionExpr rep{min, max, std::move(*$7)};
         delete $7;
         $$ = new Expression{std::move(rep)};

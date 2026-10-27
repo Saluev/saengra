@@ -46,6 +46,7 @@ std::string* make_string(const char* text) {
 
 "-"                     { yylval.edge_token = 3; return TOKEN_DASH; }
 
+([1-9][0-9]*|0)\+x      { yylval.str = make_string(yytext); return TOKEN_INTEGER_PLUS_X; }
 [1-9][0-9]*x            { yylval.str = make_string(yytext); return TOKEN_INTEGER_X; }
 0x                      { yylval.str = make_string(yytext); return TOKEN_INTEGER_X; }
 

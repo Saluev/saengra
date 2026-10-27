@@ -242,3 +242,21 @@ TEST_F(PlannerTest, OperandsWithRefsSetByEarlierOperationsAreNotNested) {
     EXPECT_EQ(plan_nested("tile as t (?= -unit> * as u) (all: -adjacent> tile -unit> u)"),
               "Concatenation(Vertex(tile as t), If(Path(-unit-> * as u)), AllWithoutSetRef(PathToVertex(-adjacent-> tile -unit-> * == u)))");
 }
+
+// ============================================================================
+// Repetition
+// ============================================================================
+
+TEST_F(PlannerTest, RepetitionCounts) {
+    EXPECT_EQ(plan("user (repeat 3x: -friend> user)"), "Concatenation(Vertex(user), Repetition3-3(Path(-friend-> user)))");
+    EXPECT_EQ(plan("user (repeat 2-5x: -friend> user)"), "Concatenation(Vertex(user), Repetition2-5(Path(-friend-> user)))");
+    EXPECT_EQ(plan("user (repeat 2+x: -friend> user)"), "Concatenation(Vertex(user), Repetition2+(Path(-friend-> user)))");
+    EXPECT_EQ(plan("user (repeat: -friend> user)"), "Concatenation(Vertex(user), Repetition0+(Path(-friend-> user)))");
+}
+
+TEST_F(PlannerTest, RefSetInRepetitionIsBoundAfterItOnlyIfItRepeatsAtLeastOnce) {
+    EXPECT_EQ(plan("? (repeat 1-2x: -a> * as x) -b> x"),
+              "Concatenation(Vertex(?), Repetition1-2(Path(-a-> * as x)), PathToVertex(-b-> * == x))");
+    EXPECT_EQ(plan("? (repeat 0-2x: -a> * as x) -b> x"),
+              "Concatenation(Vertex(?), Repetition0-2(Path(-a-> * as x)), Path(-b-> * as x))");
+}

@@ -159,10 +159,10 @@ public:
 class RepetitionExpr {
 public:
     Expression operand;
-    int min_repeats;
-    int max_repeats;
+    unsigned min_repeats;
+    std::optional<unsigned> max_repeats;
 
-    RepetitionExpr(int min, int max, Expression op);
+    RepetitionExpr(unsigned min, std::optional<unsigned> max, Expression op);
 
     std::string to_string() const;
     Children iter_children();

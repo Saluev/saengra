@@ -461,7 +461,35 @@ public:
     }
 
     void operator()(const MatchRepetition& plan) const {
-        throw std::runtime_error("RepetitionExpr is not implemented");
+        // Greedy: the result is all the maximal chains of operand matches, i.e. the ones that can't be
+        // continued (or have as many repeats as allowed), if they have enough repeats. Zero repeats
+        // match the empty graph at the start, like noop.
+        std::vector<SubgraphDraft> chains;
+        chains.push_back(SubgraphDraft{start_.origin, {start_.position}, {}, {}, start_.refs});
+        for (unsigned repeats = 0; !chains.empty(); ++repeats) {
+            const bool last = plan.max_repeats.has_value() && repeats == plan.max_repeats.value();
+            std::vector<SubgraphDraft> continued;
+            for (auto& chain : chains) {
+                const auto continued_before = continued.size();
+                if (!last) {
+                    for (const auto& end_pos : chain.end_positions) {
+                        QuerySetDraft operand_qs{dest_.deps};
+                        Start operand_start(start_.origin, end_pos, chain.refs);
+                        boost::apply_visitor(MatchVisitor<all_matches_mode>(query_, operand_start, operand_qs), plan.operand);
+                        for (auto& operand_sg : operand_qs.subgraphs) {
+                            continued.push_back(concat_subgraph(chain, operand_sg));
+                        }
+                    }
+                }
+                if (continued.size() == continued_before && repeats >= plan.min_repeats) {
+                    dest_.subgraphs.push_back(std::move(chain));
+                    if (enough()) {
+                        return;
+                    }
+                }
+            }
+            chains = std::move(continued);
+        }
     }
 
 private:
