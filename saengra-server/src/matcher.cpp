@@ -546,23 +546,28 @@ private:
         const VertexID from = position.vertex_id;
 
         if (plan.direction == Direction::Both) {
-            add_edge_deps<EdgeFrom, EdgeFromWithLabel>(plan, from);
-            add_edge_deps<EdgeTo, EdgeToWithLabel>(plan, from);
-            auto all_from = iter_all_from(plan, from);
-            auto all_to = iter_all_to(plan, from);
-            auto reversed_to = reverse_all(all_to);
-            for (const auto& edge_from : sort_and_intersect(all_from, reversed_to)) {
-                const Edge edges[2] = {edge_from, edge_from.reverse()};
-                if (f(edges, 2, edge_from.to)) {
-                    return true;
+            add_edge_deps<EdgeFrom, EdgeFromWithLabel>(plan.forward_labels, from);
+            add_edge_deps<EdgeTo, EdgeToWithLabel>(plan.backward_labels, from);
+            const auto all_from = iter_all_from(plan.forward_labels, from);
+            auto all_to = iter_all_to(plan.backward_labels, from);
+            // Every outgoing edge pairs with every incoming edge from the same neighbour.
+            std::sort(all_to.begin(), all_to.end(), [](const Edge& a, const Edge& b) { return a.from < b.from; });
+            for (const auto& edge_from : all_from) {
+                auto it = std::lower_bound(all_to.begin(), all_to.end(), edge_from.to,
+                                           [](const Edge& e, VertexID v) { return e.from < v; });
+                for (; it != all_to.end() && it->from == edge_from.to; ++it) {
+                    const Edge edges[2] = {edge_from, *it};
+                    if (f(edges, 2, edge_from.to)) {
+                        return true;
+                    }
                 }
             }
             return false;
         }
 
         if (plan.direction != Direction::Backward) {  // Forward or Any
-            add_edge_deps<EdgeFrom, EdgeFromWithLabel>(plan, from);
-            for (const auto& edge : iter_all_from(plan, from)) {
+            add_edge_deps<EdgeFrom, EdgeFromWithLabel>(plan.forward_labels, from);
+            for (const auto& edge : iter_all_from(plan.forward_labels, from)) {
                 if (f(&edge, 1, edge.to)) {
                     return true;
                 }
@@ -570,8 +575,8 @@ private:
         }
 
         if (plan.direction != Direction::Forward) {  // Backward or Any
-            add_edge_deps<EdgeTo, EdgeToWithLabel>(plan, from);
-            for (const auto& edge : iter_all_to(plan, from)) {
+            add_edge_deps<EdgeTo, EdgeToWithLabel>(plan.backward_labels, from);
+            for (const auto& edge : iter_all_to(plan.backward_labels, from)) {
                 if (f(&edge, 1, edge.from)) {
                     return true;
                 }
@@ -580,57 +585,69 @@ private:
         return false;
     }
 
-    Edges iter_all_from(const MatchEdge& plan, VertexID from) const {
+    // Labels are nullopt when edges with any label match.
+    Edges iter_all_from(const std::optional<std::vector<EdgeLabel>>& labels, VertexID from) const {
         const auto& edges_ = query_.graph.get_edges();
         return (
-            plan.labels.empty()
-            ? edges_.iter_present_from_vertex(from)
-            : edges_.iter_present_from_vertex_via_labels(from, plan.labels)
+            labels.has_value()
+            ? edges_.iter_present_from_vertex_via_labels(from, labels.value())
+            : edges_.iter_present_from_vertex(from)
         );
     }
 
-    Edges iter_all_to(const MatchEdge& plan, VertexID to) const {
+    Edges iter_all_to(const std::optional<std::vector<EdgeLabel>>& labels, VertexID to) const {
         const auto& edges_ = query_.graph.get_edges();
         return (
-            plan.labels.empty()
-            ? edges_.iter_present_to_vertex(to)
-            : edges_.iter_present_to_vertex_via_labels(to, plan.labels)
+            labels.has_value()
+            ? edges_.iter_present_to_vertex_via_labels(to, labels.value())
+            : edges_.iter_present_to_vertex(to)
         );
+    }
+
+    Edges iter_all_between(VertexID from, VertexID to, const std::optional<std::vector<EdgeLabel>>& labels) const {
+        static const std::vector<EdgeLabel> any_label;  // the container matches any label when given none
+        return query_.graph.get_edges().iter_present_from_vertex_to_vertex(from, to, labels.has_value() ? labels.value() : any_label);
     }
 
     void add_edge_deps(const MatchEdge& plan, VertexID vertex_id) const {
         if (plan.direction != Direction::Backward) {
-            add_edge_deps<EdgeFrom, EdgeFromWithLabel>(plan, vertex_id);
+            add_edge_deps<EdgeFrom, EdgeFromWithLabel>(plan.forward_labels, vertex_id);
         }
         if (plan.direction != Direction::Forward) {
-            add_edge_deps<EdgeTo, EdgeToWithLabel>(plan, vertex_id);
+            add_edge_deps<EdgeTo, EdgeToWithLabel>(plan.backward_labels, vertex_id);
         }
     }
 
     // Deps on the edges between two vertices, which are all that matching an edge between them depends on.
+    // Edges with any label can't be listed, so for them the deps are on all edges of the vertex.
     void add_particular_edge_deps(const MatchEdge& plan, VertexID from, VertexID to) const {
-        if (plan.labels.empty()) {
-            // Edges with any label can't be listed, so the deps are on all edges of the vertex.
-            add_edge_deps(plan, from);
-            return;
-        }
-        for (const auto label : plan.labels) {
-            if (plan.direction != Direction::Backward) {
-                dest_.deps.emplace_back(ParticularEdge{Edge{from, label, to}}, start_.origin);
+        if (plan.direction != Direction::Backward) {
+            if (plan.forward_labels.has_value()) {
+                for (const auto label : plan.forward_labels.value()) {
+                    dest_.deps.emplace_back(ParticularEdge{Edge{from, label, to}}, start_.origin);
+                }
+            } else {
+                dest_.deps.emplace_back(EdgeFrom{from}, start_.origin);
             }
-            if (plan.direction != Direction::Forward) {
-                dest_.deps.emplace_back(ParticularEdge{Edge{to, label, from}}, start_.origin);
+        }
+        if (plan.direction != Direction::Forward) {
+            if (plan.backward_labels.has_value()) {
+                for (const auto label : plan.backward_labels.value()) {
+                    dest_.deps.emplace_back(ParticularEdge{Edge{to, label, from}}, start_.origin);
+                }
+            } else {
+                dest_.deps.emplace_back(EdgeTo{from}, start_.origin);
             }
         }
     }
 
     template<typename EdgeObservable, typename EdgeWithLabelObservable>
-    void add_edge_deps(const MatchEdge& plan, VertexID vertex_id) const {
-        if (plan.labels.empty()) {
+    void add_edge_deps(const std::optional<std::vector<EdgeLabel>>& labels, VertexID vertex_id) const {
+        if (!labels.has_value()) {
             dest_.deps.emplace_back(EdgeObservable{vertex_id}, start_.origin);
             return;
         }
-        for (const auto label : plan.labels) {
+        for (const auto label : labels.value()) {
             dest_.deps.emplace_back(EdgeWithLabelObservable{vertex_id, label}, start_.origin);
         }
     }
@@ -744,27 +761,28 @@ private:
 
         const VertexID from = position.vertex_id;
         add_particular_edge_deps(edge, from, *to);
-        const auto& graph_edges = query_.graph.get_edges();
         std::vector<Edge> matched;
         switch (edge.direction) {
             case Direction::Forward:
-                matched = graph_edges.iter_present_from_vertex_to_vertex(from, *to, edge.labels);
+                matched = iter_all_between(from, *to, edge.forward_labels);
                 break;
             case Direction::Backward:
-                matched = graph_edges.iter_present_from_vertex_to_vertex(*to, from, edge.labels);
+                matched = iter_all_between(*to, from, edge.backward_labels);
                 break;
             case Direction::Any: {
-                matched = graph_edges.iter_present_from_vertex_to_vertex(from, *to, edge.labels);
-                auto backward = graph_edges.iter_present_from_vertex_to_vertex(*to, from, edge.labels);
+                matched = iter_all_between(from, *to, edge.forward_labels);
+                const auto backward = iter_all_between(*to, from, edge.backward_labels);
                 matched.insert(matched.end(), backward.begin(), backward.end());
                 break;
             }
             case Direction::Both: {
-                auto forward = graph_edges.iter_present_from_vertex_to_vertex(from, *to, edge.labels);
-                auto backward = reverse_all(graph_edges.iter_present_from_vertex_to_vertex(*to, from, edge.labels));
-                for (const Edge& e : sort_and_intersect(forward, backward)) {
-                    matched.push_back(e);
-                    matched.push_back(e.reverse());
+                const auto forward = iter_all_between(from, *to, edge.forward_labels);
+                const auto backward = iter_all_between(*to, from, edge.backward_labels);
+                for (const Edge& f : forward) {
+                    for (const Edge& b : backward) {
+                        matched.push_back(f);
+                        matched.push_back(b);
+                    }
                 }
                 break;
             }

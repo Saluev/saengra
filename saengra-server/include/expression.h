@@ -72,8 +72,9 @@ enum class Direction {
 // Edge expression
 class EdgeExpr {
 public:
-    std::vector<EdgeLabel> labels;
     Direction direction;
+    std::optional<std::vector<EdgeLabel>> forward_labels;
+    std::optional<std::vector<EdgeLabel>> backward_labels;
 
     std::string to_string() const;
     Children iter_children();

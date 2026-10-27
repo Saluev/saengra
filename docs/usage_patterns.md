@@ -214,6 +214,13 @@ every matching edge a single subgraph consisting of that edge (but not its verti
 `<-label->` is a special case. It matches only if there are two edges between the same pair of vertices
 going in both directions, and it returns a single subgraph with both edges.
 
+`<label1&label2>` is the same with different labels: it matches an incoming edge `label1` and an
+outgoing edge `label2` connecting the current vertex with the same neighbour, and returns a single
+subgraph with both edges. For example, `user <follows&friend> user` matches a user, a friend of theirs
+and that friend following them back, without having to name the friend. Either side may be `*` or a
+list of labels: every pair of matching edges with the same neighbour is a separate match. `<label>` is
+short for `<label&label>`, so `<a|b>` also matches an incoming `a` with an outgoing `b`.
+
 ## Noop expression
 
 **Noop expression** `.` does nothing. For any start position the matcher returns one

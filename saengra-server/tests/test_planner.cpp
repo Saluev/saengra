@@ -87,6 +87,15 @@ TEST_F(PlannerTest, PathStartingWithEdge) {
               "Concatenation(Vertex(?), IfWithoutSetRef(Path(-friend-> user <-friend- user)))");
 }
 
+TEST_F(PlannerTest, IncomingAndOutgoingEdgesArePartOfPath) {
+    EXPECT_EQ(plan("user <follows&friend> user <friend> user"), "Path(user <follows&friend> user <friend> user)");
+}
+
+TEST_F(PlannerTest, IncomingAndOutgoingEdgesToKnownVertex) {
+    EXPECT_EQ(plan("user as u -friend> user <follows&friend> u"),
+              "PathToVertex(user as u -friend-> user <follows&friend> * == u)");
+}
+
 TEST_F(PlannerTest, NestedConcatenationsJoinPath) {
     EXPECT_EQ(plan("user (-friend> user) -friend> user"), "Path(user -friend-> user -friend-> user)");
 }

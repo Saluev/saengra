@@ -18,6 +18,14 @@ void yyerror(const char* s);
 saengra::Expression* parse_result_raw = nullptr;
 // Vertices container for internalizing type names
 saengra::Graph* parse_graph = nullptr;
+
+// Labels of an edge, where nullptr stands for any label.
+std::optional<std::vector<EdgeLabel>> to_labels(const std::vector<EdgeLabel>* labels) {
+    if (labels == nullptr) {
+        return std::nullopt;
+    }
+    return *labels;
+}
 }
 
 %union {
@@ -174,37 +182,40 @@ vertex:
 
 edge:
     edge_start edge_labels edge_end {
-        Direction dir;
-        if ($1 == -1 && $3 == 1) {
-            dir = Direction::Both;
-        } else if ($1 == -1) {
-            dir = Direction::Backward;
-        } else if ($3 == 1) {
-            dir = Direction::Forward;
-        } else {
-            dir = Direction::Any;
-        }
-
         EdgeExpr e;
-        e.direction = dir;
-        e.labels = std::move(*$2);
+        if ($1 == -1 && $3 == 1) {
+            e.direction = Direction::Both;
+        } else if ($1 == -1) {
+            e.direction = Direction::Backward;
+        } else if ($3 == 1) {
+            e.direction = Direction::Forward;
+        } else {
+            e.direction = Direction::Any;
+        }
+        if (e.direction != Direction::Backward) {
+            e.forward_labels = to_labels($2);
+        }
+        if (e.direction != Direction::Forward) {
+            e.backward_labels = to_labels($2);
+        }
         delete $2;
         $$ = new Expression{std::move(e)};
     }
-    | edge_start TOKEN_WILDCARD edge_end {
-        Direction dir;
-        if ($1 == -1 && $3 == 1) {
-            dir = Direction::Both;
-        } else if ($1 == -1) {
-            dir = Direction::Backward;
-        } else if ($3 == 1) {
-            dir = Direction::Forward;
-        } else {
-            dir = Direction::Any;
+    | edge_start edge_labels TOKEN_AND edge_labels edge_end {
+        // An incoming edge and an outgoing edge with the same neighbour, e.g. `<a&b>`.
+        if ($1 != -1 || $5 != 1) {
+            yyerror("labels of incoming and outgoing edges can only be given in <...&...>");
+            delete $2;
+            delete $4;
+            YYERROR;
         }
 
         EdgeExpr e;
-        e.direction = dir;
+        e.direction = Direction::Both;
+        e.backward_labels = to_labels($2);
+        e.forward_labels = to_labels($4);
+        delete $2;
+        delete $4;
         $$ = new Expression{std::move(e)};
     }
     ;
@@ -225,8 +236,10 @@ edge_end:
     | TOKEN_DASH { $$ = 0; }
     ;
 
+// nullptr for `*`, which matches any label.
 edge_labels:
     edge_label_list { $$ = $1; }
+    | TOKEN_WILDCARD { $$ = nullptr; }
     ;
 
 edge_label_list:

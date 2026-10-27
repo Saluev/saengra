@@ -57,7 +57,7 @@ namespace {
     }
 
     std::string edge_to_string(const MatchEdge& edge) {
-        return EdgeExpr{edge.labels, edge.direction}.to_string();
+        return EdgeExpr{edge.direction, edge.forward_labels, edge.backward_labels}.to_string();
     }
 
     std::string path_to_string(const MatchPath& path) {

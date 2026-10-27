@@ -84,13 +84,31 @@ std::string EdgeExpr::to_string() const {
     }
 
     // Labels
-    if (!labels.empty()) {
-        for (size_t i = 0; i < labels.size(); ++i) {
-            if (i > 0) oss << "|";
-            oss << labels[i];
+    auto print_labels = [&oss](const std::optional<std::vector<EdgeLabel>>& labels) {
+        if (labels.has_value()) {
+            for (size_t i = 0; i < labels->size(); ++i) {
+                if (i > 0) oss << "|";
+                oss << (*labels)[i];
+            }
+        } else {
+            oss << "*";
         }
-    } else {
-        oss << "*";
+    };
+    switch (direction) {
+        case Direction::Forward:
+        case Direction::Any:
+            print_labels(forward_labels);
+            break;
+        case Direction::Backward:
+            print_labels(backward_labels);
+            break;
+        case Direction::Both:
+            if (backward_labels != forward_labels) {
+                print_labels(backward_labels);
+                oss << "&";
+            }
+            print_labels(forward_labels);
+            break;
     }
 
     // End based on direction

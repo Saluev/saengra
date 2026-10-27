@@ -99,8 +99,9 @@ public:
 
 class MatchEdge {
 public:
-    std::vector<EdgeLabel> labels;
     Direction direction;
+    std::optional<std::vector<EdgeLabel>> forward_labels;
+    std::optional<std::vector<EdgeLabel>> backward_labels;
 
     std::string to_string() const;
     NestedPlans iter_nested_plans();

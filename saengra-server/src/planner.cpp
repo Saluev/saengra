@@ -242,7 +242,7 @@ private:
     }
 
     static MatchEdge plan_edge(const EdgeExpr& expr) {
-        return MatchEdge{expr.labels, expr.direction};
+        return MatchEdge{expr.direction, expr.forward_labels, expr.backward_labels};
     }
 
     static void flatten(const ConcatenationExpr& expr, std::vector<const Expression*>& operands) {

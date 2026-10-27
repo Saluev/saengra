@@ -50,24 +50,55 @@ public:
     void operator()(const EdgeExpr& expr) const {
         const auto& vertices = query_.graph.get_vertices();
 
-        if (expr.labels.empty()) {
+        // Starts are the vertices with an edge going from (or, for backward edges, to) them.
+        const std::optional<std::vector<EdgeLabel>>* labels = nullptr;
+        bool starts_at_from = false;
+        bool starts_at_to = false;
+        switch (expr.direction) {
+            case Direction::Forward:
+                labels = &expr.forward_labels;
+                starts_at_from = true;
+                break;
+            case Direction::Backward:
+                labels = &expr.backward_labels;
+                starts_at_to = true;
+                break;
+            case Direction::Any:
+                labels = &expr.forward_labels;
+                starts_at_from = true;
+                starts_at_to = true;
+                break;
+            case Direction::Both:
+                // A match needs both edges, so either one is enough to find the starts. Matching from them
+                // depends on their other edges, so new edges of the other kind don't need to add starts.
+                if (expr.forward_labels.has_value() || !expr.backward_labels.has_value()) {
+                    labels = &expr.forward_labels;
+                    starts_at_from = true;
+                } else {
+                    labels = &expr.backward_labels;
+                    starts_at_to = true;
+                }
+                break;
+        }
+
+        if (!labels->has_value()) {
             auto matching_vertices = vertices.iter_present();
             add_positions(dest_, matching_vertices, PositionKind::ORBIT);
             dest_.deps.emplace_back(NewEdge{}, EveryAddedEdge{/* TODO direction?.. */});
             return;
         }
 
-        const auto edges = query_.graph.get_edges().iter_present_via_labels(expr.labels);
+        const auto edges = query_.graph.get_edges().iter_present_via_labels(labels->value());
         for (const Edge& edge : edges) {
-            if (expr.direction != Direction::Backward) {
+            if (starts_at_from) {
                 dest_.positions.emplace_back(edge.from, PositionKind::ORBIT);
             }
-            if (expr.direction != Direction::Forward) {
+            if (starts_at_to) {
                 dest_.positions.emplace_back(edge.to, PositionKind::ORBIT);
             }
         }
 
-        for (const EdgeLabel& label : expr.labels) {
+        for (const EdgeLabel& label : labels->value()) {
             dest_.deps.emplace_back(NewEdgeWithLabel{label}, EveryAddedEdge{/* TODO direction?.. */});
         }
     }
