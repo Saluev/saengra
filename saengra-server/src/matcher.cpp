@@ -573,6 +573,21 @@ private:
         }
         const VertexID from = position.vertex_id;
 
+        if (plan.direction == Direction::BothSymmetric) {
+            add_edge_deps<EdgeFrom, EdgeFromWithLabel>(plan.forward_labels, from);
+            add_edge_deps<EdgeTo, EdgeToWithLabel>(plan.backward_labels, from);
+            auto all_from = iter_all_from(plan.forward_labels, from);
+            auto reversed_to = reverse_all(iter_all_to(plan.backward_labels, from));
+            // An outgoing edge pairs with the incoming edge with the same label from the same neighbour.
+            for (const auto& edge_from : sort_and_intersect(all_from, reversed_to)) {
+                const Edge edges[2] = {edge_from, edge_from.reverse()};
+                if (f(edges, 2, edge_from.to)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         if (plan.direction == Direction::Both) {
             add_edge_deps<EdgeFrom, EdgeFromWithLabel>(plan.forward_labels, from);
             add_edge_deps<EdgeTo, EdgeToWithLabel>(plan.backward_labels, from);
@@ -814,6 +829,15 @@ private:
                 }
                 break;
             }
+            case Direction::BothSymmetric: {
+                auto forward = iter_all_between(from, *to, edge.forward_labels);
+                auto backward = reverse_all(iter_all_between(*to, from, edge.backward_labels));
+                for (const Edge& e : sort_and_intersect(forward, backward)) {
+                    matched.push_back(e);
+                    matched.push_back(e.reverse());
+                }
+                break;
+            }
         }
         if (matched.empty()) {
             return false;
@@ -825,7 +849,7 @@ private:
             return false;
         }
         const Refs& result_refs = match == VertexMatch::NewRefs ? new_refs : refs;
-        const size_t edges_per_match = edge.direction == Direction::Both ? 2 : 1;
+        const size_t edges_per_match = edge.direction == Direction::Both || edge.direction == Direction::BothSymmetric ? 2 : 1;
         for (size_t i = 0; i < matched.size(); i += edges_per_match) {
             if (emit(*to, matched.data() + i, edges_per_match, result_refs)) {
                 return true;

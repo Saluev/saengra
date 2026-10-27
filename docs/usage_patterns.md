@@ -220,7 +220,8 @@ outgoing edge `label2` connecting the current vertex with the same neighbour, an
 subgraph with both edges. For example, `user <follows&friend> user` matches a pair of users such that first one has
 added the second one to friends and at the same time the second one followed the first one. 
 Either side may be `*` or a `|`-separated list of labels: every pair of matching edges with the same neighbour is a
-separate match. `<label>` is  short for `<label&label>`, so `<a|b>` also matches an incoming `a` with an outgoing `b`.
+separate match. In contrast, `<a|b>` requires the same label in both directions (`a` both ways or `b` both
+ways), while `<a|b&a|b>` also matches an incoming `a` with an outgoing `b`.
 
 ## Noop expression
 

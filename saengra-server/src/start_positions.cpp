@@ -69,6 +69,7 @@ public:
                 starts_at_to = true;
                 break;
             case Direction::Both:
+            case Direction::BothSymmetric:
                 // A match needs both edges, so either one is enough to find the starts. Matching from them
                 // depends on their other edges, so new edges of the other kind don't need to add starts.
                 if (expr.forward_labels.has_value() || !expr.backward_labels.has_value()) {

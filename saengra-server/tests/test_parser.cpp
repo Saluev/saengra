@@ -19,6 +19,7 @@ MATCHER_P(HasDirection, expected_direction, "") {
             case Direction::Forward: *result_listener << "Forward"; break;
             case Direction::Backward: *result_listener << "Backward"; break;
             case Direction::Both: *result_listener << "Both"; break;
+            case Direction::BothSymmetric: *result_listener << "BothSymmetric"; break;
             case Direction::Any: *result_listener << "Any"; break;
         }
         *result_listener << " instead of ";
@@ -26,6 +27,7 @@ MATCHER_P(HasDirection, expected_direction, "") {
             case Direction::Forward: *result_listener << "Forward"; break;
             case Direction::Backward: *result_listener << "Backward"; break;
             case Direction::Both: *result_listener << "Both"; break;
+            case Direction::BothSymmetric: *result_listener << "BothSymmetric"; break;
             case Direction::Any: *result_listener << "Any"; break;
         }
         return false;
@@ -149,8 +151,8 @@ TEST_F(ParserTest, DirectionSemantics) {
     EXPECT_THAT(parser_.parse("<label-"), HasDirection(Direction::Backward));
 
     // Both (bidirectional): <>
-    EXPECT_THAT(parser_.parse("<label>"), HasDirection(Direction::Both));
-    EXPECT_THAT(parser_.parse("<-label->"), HasDirection(Direction::Both));
+    EXPECT_THAT(parser_.parse("<label>"), HasDirection(Direction::BothSymmetric));
+    EXPECT_THAT(parser_.parse("<-label->"), HasDirection(Direction::BothSymmetric));
 
     // Any: --
     EXPECT_THAT(parser_.parse("-label-"), HasDirection(Direction::Any));

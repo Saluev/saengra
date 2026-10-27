@@ -108,12 +108,14 @@ def test_incoming_and_outgoing_edges_are_tracked(
     [
         ("Anchor <x> *", 0),  # the same label in both directions
         ("Anchor <x&y> *", 1),
-        ("Anchor <x|y> *", 1),  # any of the labels in each direction
+        ("Anchor <x|y> *", 0),  # either label, the same in both directions
+        ("Anchor <x|y&x|y> *", 1),  # any of the labels in each direction
         ("Anchor <x|z&y> *", 1),
         ("Anchor <y|z&y> *", 0),
         ("Anchor <*&y> *", 1),
         ("Anchor <x&*> *", 1),
-        ("Anchor <*> *", 1),
+        ("Anchor <*> *", 0),
+        ("Anchor <*&*> *", 1),
         ("Anchor <y&x> *", 0),
     ],
 )
@@ -134,3 +136,19 @@ def test_incoming_and_outgoing_labels_need_both_arrows(
 ) -> None:
     with pytest.raises(RuntimeError, match="parse error"):
         empty_env.match_subgrapghs(expression)
+
+
+def test_symmetric_edges_have_the_same_label(empty_env: Environment) -> None:
+    commit(
+        empty_env,
+        *[AddVertex(v) for v in (A, 1, 2)],
+        *[AddEdge(A, "x", 1), AddEdge(1, "x", A)],
+        *[AddEdge(A, "y", 2), AddEdge(2, "y", A), AddEdge(2, "x", A)],
+    )
+    matched = {
+        frozenset(edges_of(sg)) for sg in empty_env.match_subgrapghs("Anchor <x|y> *")
+    }
+    assert matched == {
+        frozenset({(A, "x", 1), (1, "x", A)}),
+        frozenset({(A, "y", 2), (2, "y", A)}),
+    }

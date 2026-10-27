@@ -76,6 +76,7 @@ std::string EdgeExpr::to_string() const {
             oss << "-";
             break;
         case Direction::Both:
+        case Direction::BothSymmetric:
             oss << "<";
             break;
         case Direction::Any:
@@ -96,6 +97,7 @@ std::string EdgeExpr::to_string() const {
     };
     switch (direction) {
         case Direction::Forward:
+        case Direction::BothSymmetric:
         case Direction::Any:
             print_labels(forward_labels);
             break;
@@ -103,10 +105,8 @@ std::string EdgeExpr::to_string() const {
             print_labels(backward_labels);
             break;
         case Direction::Both:
-            if (backward_labels != forward_labels) {
-                print_labels(backward_labels);
-                oss << "&";
-            }
+            print_labels(backward_labels);
+            oss << "&";
             print_labels(forward_labels);
             break;
     }
@@ -120,6 +120,7 @@ std::string EdgeExpr::to_string() const {
             oss << "->";
             break;
         case Direction::Both:
+        case Direction::BothSymmetric:
             oss << ">";
             break;
         case Direction::Any:

@@ -63,10 +63,11 @@ public:
 };
 
 enum class Direction {
-    Forward,    // ->
-    Backward,   // <-
-    Both,       // <> (bidirectional)
-    Any         // -- (any direction)
+    Forward,        // ->
+    Backward,       // <-
+    Both,           // <&> (an incoming and an outgoing edge with the same neighbour)
+    BothSymmetric,  // <> (the same, with the same label)
+    Any             // -- (any direction)
 };
 
 // Edge expression

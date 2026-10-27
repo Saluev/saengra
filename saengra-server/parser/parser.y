@@ -189,7 +189,7 @@ edge:
     edge_start edge_labels edge_end {
         EdgeExpr e;
         if ($1 == -1 && $3 == 1) {
-            e.direction = Direction::Both;
+            e.direction = Direction::BothSymmetric;
         } else if ($1 == -1) {
             e.direction = Direction::Backward;
         } else if ($3 == 1) {
