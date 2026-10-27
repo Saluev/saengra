@@ -4,7 +4,7 @@ from inspect import getmodule
 from typing import Any, Protocol, Self, Type, TypeAlias, dataclass_transform
 
 from saengra.graph import Label, Primitive, Update
-from saengra.utilities.typing import check_alive
+from saengra.utilities.typing import Module, check_alive
 
 
 class EnvProtocol(Protocol):
@@ -100,6 +100,27 @@ def _get_namespace_annotations(ns: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+def _get_class_annotations(cls: type) -> dict[str, Any]:
+    # Only the class's own annotations, not the inherited ones.
+    if sys.version_info < (3, 14):
+        return cls.__dict__.get("__annotations__", {})
+    import annotationlib
+
+    return annotationlib.get_annotations(cls, format=annotationlib.Format.FORWARDREF)
+
+
+def _find_mixins(bases: tuple[type, ...], primitive_type: type) -> list[type]:
+    """Other classes an entity inherits from, the most derived first (in the MRO order, unless
+    the hierarchy has diamonds)."""
+    excluded = {Entity, *primitive_type.__mro__}
+    mixins: list[type] = []
+    for base in bases:
+        for t in base.__mro__:
+            if t not in excluded and t not in mixins:
+                mixins.append(t)
+    return mixins
+
+
 class EntityMeta(type):
     def __new__(mcls, name: str, bases: tuple[type, ...], ns: dict[str, Any]) -> type:
         from saengra.utilities.annotations import parse_annotation
@@ -110,7 +131,6 @@ class EntityMeta(type):
         )
 
         module = sys.modules[ns["__module__"]]
-        annotations = _get_namespace_annotations(ns)
 
         if name == "Entity" and module == getmodule(mcls):
             return super().__new__(mcls, name, bases, ns)
@@ -121,9 +141,26 @@ class EntityMeta(type):
             ns[attr_name] = property_ = PrimitiveProperty(attr_name)
             properties.append(property_)
 
-        for attr_name, annotation in [*annotations.items()]:
+        # Like dataclass fields: annotations of mixins come first, the most distant ones first, and the
+        # class's own ones last; a redeclared annotation keeps its place but takes the latest type.
+        # Annotations are resolved in the modules they're written in.
+        annotations: dict[str, tuple[Any, Module]] = {}
+        for mixin in reversed(_find_mixins(bases, primitive_type)):
+            if "__slots__" not in mixin.__dict__:
+                # Otherwise entities would have a __dict__.
+                raise TypeError(
+                    f"{name}: mixin {mixin.__qualname__} must define __slots__ (e.g. `__slots__ = ()`)"
+                )
+            mixin_module = sys.modules[mixin.__module__]
+            for attr_name, annotation in _get_class_annotations(mixin).items():
+                annotations[attr_name] = (annotation, mixin_module)
+        for attr_name, annotation in _get_namespace_annotations(ns).items():
+            annotations[attr_name] = (annotation, module)
+        ns["_relation_labels"] = tuple(annotations)
+
+        for attr_name, (annotation, annotation_module) in annotations.items():
             label = Label(attr_name)
-            parsed_annotation = parse_annotation(module, annotation)
+            parsed_annotation = parse_annotation(annotation_module, annotation)
             property_ = related_entity_property(label, parsed_annotation)
             ns[attr_name] = property_
             properties.append(property_)
@@ -171,7 +208,7 @@ class EntityMeta(type):
         result = super().__new__(mcls, name, bases, ns)
 
         if result.__mro__[1] is not Entity:
-            raise RuntimeError(
+            raise TypeError(
                 "Entity must be first base class, inheriting Entity subclasses is not supported"
             )
             # We assume that Entity is the first base class to optimize `is_entity()`.
@@ -188,6 +225,8 @@ class Entity(metaclass=EntityMeta):
 
     # Class attributes:
     primitive_type: Type[Primitive]
+    _relation_labels: tuple[str, ...]
+    """Labels of the entity's relations, including the ones declared in mixins."""
 
     # Instance attributes:
     primitive: Primitive
@@ -496,7 +535,7 @@ class Entity(metaclass=EntityMeta):
     def _after_remove(self) -> None:
         # Invoked by Environment if after the vertex is removed.
         self.alive = False
-        for label in self.__annotations__:
+        for label in self._relation_labels:
             prop = getattr(type(self), label)
             if isinstance(related_entity := getattr(self, label, None), Entity):
                 related_entity._inverse.remove((self, label))
@@ -515,7 +554,7 @@ class Entity(metaclass=EntityMeta):
 
     def _reset_cache(self, env: EnvProtocol, primitive: Primitive) -> None:
         cls = type(self)
-        for attr_name in cls.__annotations__:
+        for attr_name in cls._relation_labels:
             prop = getattr(cls, attr_name)
             prop.reset_cache(env, self, primitive)
 
